@@ -13,6 +13,7 @@ export interface DataGridTableMeta {
 export interface DataGridColumnInfo {
   name: string;
   is_nullable: boolean;
+  column_default?: string | null;
 }
 
 export interface DataGridSaveStatementOptions {
@@ -36,7 +37,9 @@ export interface DataGridSaveValidationOptions {
 export function validateDataGridSave(options: DataGridSaveValidationOptions): string | undefined {
   const notNullColumns = new Set(
     (options.columnInfo ?? [])
-      .filter((column) => !column.is_nullable && !isOracleRowId(options.databaseType, column.name))
+      .filter(
+        (column) => !column.is_nullable && !column.column_default && !isOracleRowId(options.databaseType, column.name),
+      )
       .map((column) => normalizeColumnName(column.name)),
   );
   if (notNullColumns.size === 0) return undefined;
