@@ -19,6 +19,8 @@ const assetIcons: Record<string, string> = {
   tidb: "tidb",
   elasticsearch: "elasticsearch",
   oracle: "oracle",
+  "oracle-10g": "oracle",
+  oracle_10g: "oracle",
   sqlserver: "sqlserver",
   oceanbase: "oceanbase",
   opengauss: "opengauss",
