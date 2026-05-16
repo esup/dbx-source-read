@@ -261,16 +261,24 @@ pub fn prepare_sql_file_statement(
     driver_profile: Option<&str>,
 ) -> SqlFileStatementAction {
     let statement = statement.trim();
+    let is_mysql_compatible_target = is_mysql_compatible_import_target(db_type, driver_profile);
+    if is_mysql_compatible_target && is_mysql_lock_table_statement(statement) {
+        return SqlFileStatementAction::Skip;
+    }
+
     let Some(body) = mysql_executable_comment_body(statement) else {
+        if is_mysql_compatible_target && is_mysql_session_restore_statement(statement) {
+            return SqlFileStatementAction::Skip;
+        }
         return SqlFileStatementAction::Execute(statement.to_string());
     };
 
-    if !is_mysql_compatible_import_target(db_type, driver_profile) {
+    if !is_mysql_compatible_target {
         return SqlFileStatementAction::Skip;
     }
 
     let body = body.trim();
-    if body.is_empty() || is_mysql_key_toggle_statement(body) {
+    if body.is_empty() || is_mysql_key_toggle_statement(body) || is_mysql_session_restore_statement(body) {
         return SqlFileStatementAction::Skip;
     }
 
@@ -357,6 +365,65 @@ fn find_block_comment_close(bytes: &[u8], mut start: usize) -> Option<usize> {
 fn is_mysql_key_toggle_statement(statement: &str) -> bool {
     let upper = statement.split_whitespace().collect::<Vec<_>>().join(" ").to_ascii_uppercase();
     upper.starts_with("ALTER TABLE ") && (upper.ends_with(" ENABLE KEYS") || upper.ends_with(" DISABLE KEYS"))
+}
+
+fn is_mysql_lock_table_statement(statement: &str) -> bool {
+    let executable = leading_executable_sql(statement);
+    let upper = executable.split_whitespace().collect::<Vec<_>>().join(" ").to_ascii_uppercase();
+    upper == "UNLOCK TABLES" || (upper.starts_with("LOCK TABLES ") && upper.ends_with(" WRITE"))
+}
+
+fn is_mysql_session_restore_statement(statement: &str) -> bool {
+    let executable = leading_executable_sql(statement);
+    let upper = executable.split_whitespace().collect::<Vec<_>>().join(" ").to_ascii_uppercase();
+    if !upper.starts_with("SET ") {
+        return false;
+    }
+
+    let assignment = upper.trim_start_matches("SET ").trim();
+    if assignment.starts_with('@') {
+        return false;
+    }
+
+    assignment.contains("= @OLD_")
+        || assignment.contains("=@OLD_")
+        || assignment.contains("= @SAVED_")
+        || assignment.contains("=@SAVED_")
+}
+
+fn leading_executable_sql(sql: &str) -> &str {
+    let bytes = sql.as_bytes();
+    let mut i = 0;
+
+    while i < bytes.len() {
+        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+
+        if i + 1 < bytes.len() && bytes[i] == b'-' && bytes[i + 1] == b'-' {
+            i += 2;
+            while i < bytes.len() && bytes[i] != b'\n' {
+                i += 1;
+            }
+            continue;
+        }
+
+        if i + 1 < bytes.len() && bytes[i] == b'/' && bytes[i + 1] == b'*' {
+            if i + 2 < bytes.len() && (bytes[i + 2] == b'!' || (i + 3 < bytes.len() && &bytes[i + 2..i + 4] == b"M!")) {
+                break;
+            }
+
+            let Some(close) = find_block_comment_close(bytes, i + 2) else {
+                return &sql[sql.len()..];
+            };
+            i = close + 2;
+            continue;
+        }
+
+        break;
+    }
+
+    &sql[i..]
 }
 
 fn first_executable_sql_token(sql: &str) -> Option<&str> {
@@ -617,12 +684,8 @@ mod tests {
     #[test]
     fn prepares_mysql_executable_comments_for_mysql_compatible_imports() {
         assert_eq!(
-            prepare_sql_file_statement(
-                "/*!40101 SET character_set_client = @saved_cs_client */",
-                &DatabaseType::Mysql,
-                None
-            ),
-            SqlFileStatementAction::Execute("SET character_set_client = @saved_cs_client".to_string())
+            prepare_sql_file_statement("/*!40101 SET NAMES utf8mb4 */", &DatabaseType::Mysql, None),
+            SqlFileStatementAction::Execute("SET NAMES utf8mb4".to_string())
         );
     }
 
@@ -635,6 +698,54 @@ mod tests {
         assert_eq!(
             prepare_sql_file_statement("/*!40000 ALTER TABLE `dd_admin` DISABLE KEYS */", &DatabaseType::Mysql, None),
             SqlFileStatementAction::Skip
+        );
+    }
+
+    #[test]
+    fn skips_mysql_lock_table_statements_for_mysql_compatible_imports() {
+        assert_eq!(
+            prepare_sql_file_statement("LOCK TABLES `dd_geo_json` WRITE", &DatabaseType::Mysql, None),
+            SqlFileStatementAction::Skip
+        );
+        assert_eq!(
+            prepare_sql_file_statement("UNLOCK TABLES", &DatabaseType::Mysql, None),
+            SqlFileStatementAction::Skip
+        );
+        assert_eq!(
+            prepare_sql_file_statement(
+                "-- Dumping data for table `dd_geo_json`\nLOCK TABLES `dd_geo_json` WRITE",
+                &DatabaseType::Mysql,
+                None
+            ),
+            SqlFileStatementAction::Skip
+        );
+    }
+
+    #[test]
+    fn skips_mysql_session_restore_statements_for_mysql_compatible_imports() {
+        assert_eq!(
+            prepare_sql_file_statement(
+                "/*!40101 SET character_set_client = @saved_cs_client */",
+                &DatabaseType::Mysql,
+                None
+            ),
+            SqlFileStatementAction::Skip
+        );
+        assert_eq!(
+            prepare_sql_file_statement("/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */", &DatabaseType::Mysql, None),
+            SqlFileStatementAction::Skip
+        );
+        assert_eq!(
+            prepare_sql_file_statement("SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS", &DatabaseType::Mysql, None),
+            SqlFileStatementAction::Skip
+        );
+        assert_eq!(
+            prepare_sql_file_statement(
+                "/*!40101 SET @saved_cs_client = @@character_set_client */",
+                &DatabaseType::Mysql,
+                None
+            ),
+            SqlFileStatementAction::Execute("SET @saved_cs_client = @@character_set_client".to_string())
         );
     }
 
