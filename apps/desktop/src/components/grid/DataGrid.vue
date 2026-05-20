@@ -119,6 +119,7 @@ import {
 } from "@/lib/paginationPageSize";
 import {
   filterColumnVisibilityOptions,
+  invertedHiddenColumnIndexes,
   nextHiddenColumnIndexes,
   visibleColumnIndexesForFilter,
 } from "@/lib/dataGridColumnVisibility";
@@ -1076,6 +1077,9 @@ function toggleColumnVisibility(columnIndex: number) {
 function showAllColumns() {
   hiddenColumnIndexes.value = new Set();
 }
+function invertColumnVisibility() {
+  hiddenColumnIndexes.value = invertedHiddenColumnIndexes(displayableColumnIndexes.value, hiddenColumnIndexes.value);
+}
 const firstVisibleColumnIndex = computed(() => visibleColumnIndexes.value[0] ?? 0);
 function actualColumnIndex(visibleColumnIndex: number): number {
   return visibleColumnIndexes.value[visibleColumnIndex] ?? visibleColumnIndex;
@@ -1716,6 +1720,21 @@ const activeCellDetail = computed(() => {
 
 const detailEditValue = ref("");
 const isEditingDetail = ref(false);
+const detailTemporalEditorKind = computed(() => {
+  const detail = activeCellDetail.value;
+  return detail ? temporalEditorKindForColumn(detail.colIndex) : undefined;
+});
+
+function resetDetailEdit() {
+  isEditingDetail.value = false;
+  detailEditValue.value = "";
+}
+
+function closeCellDetails() {
+  resetDetailEdit();
+  showCellDetail.value = false;
+  detailCell.value = null;
+}
 
 function startDetailEdit() {
   const detail = activeCellDetail.value;
@@ -1759,7 +1778,7 @@ function commitDetailEdit() {
 }
 
 function cancelDetailEdit() {
-  isEditingDetail.value = false;
+  resetDetailEdit();
 }
 
 function setDetailNull() {
@@ -1772,7 +1791,7 @@ function setDetailNull() {
   if (item.isNew && item.newIndex !== undefined) {
     newRows.value[item.newIndex][detail.colIndex] = null;
     newRows.value = [...newRows.value];
-    isEditingDetail.value = false;
+    resetDetailEdit();
     detailCell.value = { ...detailCell.value! };
     return;
   }
@@ -1785,7 +1804,7 @@ function setDetailNull() {
   if (useTransaction.value && !transactionActive.value) {
     enterTransaction();
   }
-  isEditingDetail.value = false;
+  resetDetailEdit();
   detailCell.value = { ...detailCell.value! };
 }
 
@@ -2002,6 +2021,7 @@ const {
 
 // --- Cell selection and detail ---
 function showCellDetails(rowIndex: number, colIndex: number) {
+  resetDetailEdit();
   detailCell.value = { rowIndex, col: colIndex };
   showCellDetail.value = true;
 }
@@ -2059,6 +2079,48 @@ function cutSelection() {
   }
 }
 
+function currentSelectedCellPosition() {
+  const range = selectedRange.value;
+  if (!range) return null;
+  return { rowIndex: range.startRow, colIndex: range.startCol };
+}
+
+function scrollCellIntoView(rowIndex: number, colIndex: number) {
+  nextTick(() => {
+    const rowEl = gridRef.value?.querySelector<HTMLElement>(`[data-row-index="${rowIndex}"]`);
+    const cellEl = rowEl?.querySelector<HTMLElement>(`[data-visible-col-index="${colIndex}"]`);
+    (cellEl ?? rowEl)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  });
+}
+
+function moveSelectedCell(rowDelta: number, colDelta: number): boolean {
+  const position = currentSelectedCellPosition();
+  if (!position || editingCell.value || displayItems.value.length === 0 || visibleColumnIndexes.value.length === 0)
+    return false;
+  const rowIndex = Math.max(0, Math.min(displayItems.value.length - 1, position.rowIndex + rowDelta));
+  const colIndex = Math.max(0, Math.min(visibleColumnIndexes.value.length - 1, position.colIndex + colDelta));
+  selectSingleCell(rowIndex, colIndex);
+  clearRowSelection();
+  if (showTranspose.value) transposeRowIndex.value = rowIndex;
+  scrollCellIntoView(rowIndex, colIndex);
+  return true;
+}
+
+function editSelectedCell(): boolean {
+  const position = currentSelectedCellPosition();
+  if (!position || editingCell.value) return false;
+  const item = displayItems.value[position.rowIndex];
+  const actualColIndex = actualColumnIndex(position.colIndex);
+  if (!item || !canEditCellItem(item, actualColIndex)) return false;
+  startEdit(item.id, actualColIndex);
+  return true;
+}
+
+function commitGridEdit() {
+  commitEdit();
+  nextTick(() => gridRef.value?.focus({ preventScroll: true }));
+}
+
 async function onGridKeydown(event: KeyboardEvent) {
   if (isFocusSearchShortcut(event)) {
     event.preventDefault();
@@ -2066,6 +2128,34 @@ async function onGridKeydown(event: KeyboardEvent) {
     return;
   }
   if (eventTargetAllowsNativeClipboard(event)) return;
+  if (event.key === "ArrowLeft" && moveTransposeRecordSelection(-1)) {
+    event.preventDefault();
+    return;
+  }
+  if (event.key === "ArrowRight" && moveTransposeRecordSelection(1)) {
+    event.preventDefault();
+    return;
+  }
+  if (event.key === "ArrowUp" && moveSelectedCell(-1, 0)) {
+    event.preventDefault();
+    return;
+  }
+  if (event.key === "ArrowDown" && moveSelectedCell(1, 0)) {
+    event.preventDefault();
+    return;
+  }
+  if (event.key === "ArrowLeft" && moveSelectedCell(0, -1)) {
+    event.preventDefault();
+    return;
+  }
+  if (event.key === "ArrowRight" && moveSelectedCell(0, 1)) {
+    event.preventDefault();
+    return;
+  }
+  if (event.key === "Enter" && editSelectedCell()) {
+    event.preventDefault();
+    return;
+  }
   if (clipboardShortcut(event, "c")) {
     if (!hasCellSelection.value) return;
     event.preventDefault();
@@ -2092,6 +2182,12 @@ function copyDetailValue() {
   copyText(text);
 }
 
+function copyDetailFormattedJson() {
+  const detail = activeCellDetail.value;
+  if (!detail?.formattedJson) return;
+  copyText(detail.formattedJson);
+}
+
 function copyDetailColumnName() {
   if (!activeCellDetail.value) return;
   copyText(activeCellDetail.value.column);
@@ -2105,8 +2201,14 @@ function copyDetailSqlCondition() {
   copyText(condition);
 }
 
-const TRANSPOSE_RECORD_WIDTH = 168;
-const transposePinnedWidth = computed(() => transposeFieldWidth(visibleColumns.value));
+const TRANSPOSE_RECORD_DEFAULT_WIDTH = 168;
+const TRANSPOSE_RECORD_MIN_WIDTH = 96;
+const TRANSPOSE_PINNED_MIN_WIDTH = 104;
+const transposeRecordWidth = ref(TRANSPOSE_RECORD_DEFAULT_WIDTH);
+const transposePinnedWidthOverride = ref<number | null>(null);
+const transposePinnedWidth = computed(
+  () => transposePinnedWidthOverride.value ?? transposeFieldWidth(visibleColumns.value),
+);
 
 const transposeRows = computed(() => {
   return buildTransposeRows({
@@ -2123,7 +2225,7 @@ const transposeRecordWindow = computed(() =>
     scrollLeft: transposeScrollLeft.value,
     viewportWidth: transposeViewportWidth.value,
     pinnedWidth: transposePinnedWidth.value,
-    recordWidth: TRANSPOSE_RECORD_WIDTH,
+    recordWidth: transposeRecordWidth.value,
     overscan: 2,
   }),
 );
@@ -2132,7 +2234,7 @@ const visibleTransposeRecordIndexes = computed(() => {
   return Array.from({ length: window.end - window.start }, (_, offset) => window.start + offset);
 });
 const transposeTotalWidth = computed(
-  () => transposePinnedWidth.value + displayItems.value.length * TRANSPOSE_RECORD_WIDTH,
+  () => transposePinnedWidth.value + displayItems.value.length * transposeRecordWidth.value,
 );
 
 function transposeScrollElement(): HTMLElement | undefined {
@@ -2161,13 +2263,54 @@ function scrollTransposeRecordIntoView(rowIndex: number) {
       totalRecords: displayItems.value.length,
       viewportWidth: el.clientWidth,
       pinnedWidth: transposePinnedWidth.value,
-      recordWidth: TRANSPOSE_RECORD_WIDTH,
+      recordWidth: transposeRecordWidth.value,
     });
     updateTransposeViewport();
   });
 }
 
+function onTransposePinnedResizeStart(event: MouseEvent) {
+  event.preventDefault();
+  const startX = event.clientX;
+  const startWidth = transposePinnedWidth.value;
+  const onMove = (e: MouseEvent) => {
+    transposePinnedWidthOverride.value = Math.max(TRANSPOSE_PINNED_MIN_WIDTH, startWidth + e.clientX - startX);
+    updateTransposeViewport();
+  };
+  const onUp = () => {
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+  };
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
+}
+
+function onTransposeRecordResizeStart(event: MouseEvent) {
+  event.preventDefault();
+  const startX = event.clientX;
+  const startWidth = transposeRecordWidth.value;
+  const onMove = (e: MouseEvent) => {
+    transposeRecordWidth.value = Math.max(TRANSPOSE_RECORD_MIN_WIDTH, startWidth + e.clientX - startX);
+    updateTransposeViewport();
+  };
+  const onUp = () => {
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+  };
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
+}
+
+function closeTranspose() {
+  showTranspose.value = false;
+  transposeRowIndex.value = null;
+}
+
 function openContextTranspose() {
+  if (showTranspose.value) {
+    closeTranspose();
+    return;
+  }
   if (!contextCell.value) return;
   const next = nextContextTransposeState({
     showTranspose: showTranspose.value,
@@ -2180,7 +2323,7 @@ function openContextTranspose() {
   transposeRowIndex.value = next.transposeRowIndex;
   showTranspose.value = next.showTranspose;
   if (next.showTranspose) {
-    showCellDetail.value = false;
+    closeCellDetails();
     nextTick(updateTransposeViewport);
     if (next.transposeRowIndex !== null) scrollTransposeRecordIntoView(next.transposeRowIndex);
   }
@@ -2191,19 +2334,29 @@ function toggleTranspose(rowIndex: number) {
   transposeRowIndex.value = next.transposeRowIndex;
   showTranspose.value = next.showTranspose;
   if (next.showTranspose) {
-    showCellDetail.value = false;
+    closeCellDetails();
     nextTick(updateTransposeViewport);
     if (next.transposeRowIndex !== null) scrollTransposeRecordIntoView(next.transposeRowIndex);
   }
 }
 
+function selectTransposeRecord(rowIndex: number) {
+  if (rowIndex < 0 || rowIndex >= displayItems.value.length) return;
+  transposeRowIndex.value = rowIndex;
+  gridRef.value?.focus({ preventScroll: true });
+}
+
+function moveTransposeRecordSelection(delta: number): boolean {
+  if (!isTransposeMode.value || displayItems.value.length === 0) return false;
+  const current = transposeRowIndex.value ?? 0;
+  const next = Math.max(0, Math.min(displayItems.value.length - 1, current + delta));
+  transposeRowIndex.value = next;
+  scrollTransposeRecordIntoView(next);
+  return true;
+}
+
 function transposeNav(delta: number) {
-  if (transposeRowIndex.value === null) return;
-  const next = transposeRowIndex.value + delta;
-  if (next >= 0 && next < displayItems.value.length) {
-    transposeRowIndex.value = next;
-    scrollTransposeRecordIntoView(next);
-  }
+  moveTransposeRecordSelection(delta);
 }
 
 watch(isTransposeMode, (active) => {
@@ -2219,10 +2372,8 @@ watch(
     }
     clearCellSelection();
     clearRowSelection();
-    showCellDetail.value = false;
-    detailCell.value = null;
-    showTranspose.value = false;
-    transposeRowIndex.value = null;
+    closeCellDetails();
+    closeTranspose();
     exitTransaction();
   },
 );
@@ -2546,6 +2697,7 @@ defineExpose({
   isColumnVisible,
   toggleColumnVisibility,
   showAllColumns,
+  invertColumnVisibility,
 });
 </script>
 
@@ -2885,7 +3037,7 @@ defineExpose({
                   >
                     <ChevronRight class="w-3 h-3" />
                   </Button>
-                  <Button variant="ghost" size="icon" class="h-5 w-5" @click="showTranspose = false">
+                  <Button variant="ghost" size="icon" class="h-5 w-5" @click="closeTranspose">
                     <X class="w-3 h-3" />
                   </Button>
                 </div>
@@ -2895,7 +3047,7 @@ defineExpose({
                   :style="{
                     '--transpose-total-w': `${transposeTotalWidth}px`,
                     '--transpose-field-w': `${transposePinnedWidth}px`,
-                    '--transpose-record-w': `${TRANSPOSE_RECORD_WIDTH}px`,
+                    '--transpose-record-w': `${transposeRecordWidth}px`,
                   }"
                   :items="transposeRows"
                   :item-size="30"
@@ -2909,24 +3061,33 @@ defineExpose({
                       :style="{ width: `${transposeTotalWidth}px` }"
                     >
                       <div
-                        class="sticky left-0 z-30 shrink-0 border-r border-border px-3 py-1.5 bg-[rgb(239_239_239)] truncate dark:bg-muted"
+                        class="sticky left-0 z-30 shrink-0 border-r border-border px-3 py-1.5 bg-[rgb(239_239_239)] truncate dark:bg-muted relative"
                         :style="{ width: `${transposePinnedWidth}px` }"
                       >
                         {{ t("grid.columnName") }}
+                        <div
+                          class="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/30"
+                          @mousedown.stop="onTransposePinnedResizeStart"
+                        />
                       </div>
                       <div class="shrink-0" :style="{ width: `${transposeRecordWindow.beforeWidth}px` }" />
                       <div
                         v-for="recordIndex in visibleTransposeRecordIndexes"
                         :key="`transpose-head-${recordIndex}`"
-                        class="shrink-0 border-r border-border px-2 py-1.5 text-center tabular-nums"
+                        class="shrink-0 border-r border-border px-2 py-1.5 text-center tabular-nums relative"
                         :class="
                           recordIndex === transposeRowIndex
                             ? 'bg-primary/15 text-primary font-semibold'
                             : 'bg-[rgb(239_239_239)] dark:bg-muted'
                         "
-                        :style="{ width: `${TRANSPOSE_RECORD_WIDTH}px` }"
+                        :style="{ width: `${transposeRecordWidth}px` }"
+                        @click="selectTransposeRecord(recordIndex)"
                       >
                         {{ recordIndex + 1 }}
+                        <div
+                          class="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/30"
+                          @mousedown.stop="onTransposeRecordResizeStart"
+                        />
                       </div>
                       <div class="shrink-0" :style="{ width: `${transposeRecordWindow.afterWidth}px` }" />
                     </div>
@@ -2952,8 +3113,9 @@ defineExpose({
                           'text-muted-foreground italic': item.values[recordIndex]?.isNull,
                           'bg-primary/10': recordIndex === transposeRowIndex,
                         }"
-                        :style="{ width: `${TRANSPOSE_RECORD_WIDTH}px` }"
+                        :style="{ width: `${transposeRecordWidth}px` }"
                         :title="item.values[recordIndex]?.display"
+                        @click="selectTransposeRecord(recordIndex)"
                       >
                         {{ item.values[recordIndex]?.display }}
                       </div>
@@ -3397,16 +3559,27 @@ defineExpose({
                         </div>
                       </TooltipTrigger>
                       <TooltipContent
-                        v-if="columnTypeMap.get(col) || columnCommentMap.get(col)"
                         side="bottom"
-                        class="text-xs grid grid-cols-[auto_1fr] gap-x-2"
+                        class="grid min-w-56 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs"
                       >
+                        <span class="text-background/70">{{ t("grid.columnName") }}</span>
+                        <span class="flex min-w-0 items-center gap-2">
+                          <span class="min-w-0 flex-1 truncate font-mono">{{ col }}</span>
+                          <button
+                            type="button"
+                            class="flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-background/10"
+                            :title="t('grid.copyColumnName')"
+                            @click.stop="copyText(col)"
+                          >
+                            <Copy class="h-3 w-3" />
+                          </button>
+                        </span>
                         <template v-if="columnTypeMap.get(col)">
-                          <span class="text-muted-foreground">{{ t("grid.columnType") }}</span>
+                          <span class="text-background/70">{{ t("grid.columnType") }}</span>
                           <span :class="typeColorClass(columnTypeMap.get(col)!)">{{ columnTypeMap.get(col) }}</span>
                         </template>
                         <template v-if="columnCommentMap.get(col)">
-                          <span class="text-muted-foreground">{{ t("grid.columnComment") }}</span>
+                          <span class="text-background/70">{{ t("grid.columnComment") }}</span>
                           <span>{{ columnCommentMap.get(col) }}</span>
                         </template>
                       </TooltipContent>
@@ -3509,6 +3682,7 @@ defineExpose({
                         @mousedown="handleDataCellMousedown(index, visibleColIdx, item.id, $event)"
                         @mouseenter="extendCellSelection(index, visibleColIdx)"
                         @dblclick="canEditCellItem(item, actualColIdx) && startEdit(item.id, actualColIdx)"
+                        :data-visible-col-index="visibleColIdx"
                         @contextmenu="onCellContext(item.id, index, actualColIdx, visibleColIdx)"
                       >
                         <template v-if="editingCell?.rowId === item.id && editingCell?.col === actualColIdx">
@@ -3517,7 +3691,7 @@ defineExpose({
                             v-model="editValue"
                             :kind="temporalEditorKindForColumn(actualColIdx)!"
                             @cancel="cancelEdit"
-                            @commit="commitEdit"
+                            @commit="commitGridEdit"
                           />
                           <input
                             v-else
@@ -3721,7 +3895,7 @@ defineExpose({
               <div class="h-9 flex items-center gap-2 px-3 border-b shrink-0 bg-muted/20">
                 <Info class="w-3.5 h-3.5 text-muted-foreground" />
                 <span class="text-xs font-medium flex-1 min-w-0 truncate">{{ t("grid.cellDetails") }}</span>
-                <Button variant="ghost" size="icon" class="h-5 w-5" @click="showCellDetail = false">
+                <Button variant="ghost" size="icon" class="h-5 w-5" @click="closeCellDetails">
                   <X class="w-3 h-3" />
                 </Button>
               </div>
@@ -3780,9 +3954,20 @@ defineExpose({
                     </a>
                   </div>
                   <template v-if="isEditingDetail">
-                    <textarea
+                    <TemporalCellEditor
+                      v-if="detailTemporalEditorKind"
                       v-model="detailEditValue"
-                      class="w-full h-40 rounded border bg-background p-2 font-mono text-xs outline-none resize-y focus:border-primary"
+                      :kind="detailTemporalEditorKind"
+                      variant="inline"
+                      :commit-on-close="false"
+                      @cancel="cancelDetailEdit"
+                      @commit="commitDetailEdit"
+                    />
+                    <textarea
+                      v-else
+                      v-model="detailEditValue"
+                      wrap="off"
+                      class="w-full h-40 overflow-auto rounded border bg-background p-2 font-mono text-xs outline-none resize-y focus:border-primary"
                       @keydown.escape.stop="cancelDetailEdit"
                     />
                     <div class="flex gap-1 mt-1">
@@ -3796,7 +3981,7 @@ defineExpose({
                   </template>
                   <pre
                     v-else
-                    class="max-h-56 overflow-auto rounded border bg-muted/20 p-2 font-mono text-xs whitespace-pre-wrap break-words cursor-pointer hover:border-primary/50"
+                    class="max-h-56 overflow-auto rounded border bg-muted/20 p-2 font-mono text-xs whitespace-pre cursor-pointer hover:border-primary/50"
                     :class="{ 'cursor-text': activeCellDetail.isEditable }"
                     @dblclick="startDetailEdit"
                     >{{ activeCellDetail.displayValue }}</pre
@@ -3809,12 +3994,22 @@ defineExpose({
                     >{{ activeCellDetail.rawValue }}</pre
                   >
                 </div>
-                <div v-if="activeCellDetail.formattedJson" class="space-y-1">
-                  <div class="text-muted-foreground">{{ t("grid.formattedJson") }}</div>
+                <div v-if="activeCellDetail.formattedJson" class="mt-2 space-y-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="text-muted-foreground">{{ t("grid.formattedJson") }}</div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      class="h-6 px-2 text-xs"
+                      :title="t('grid.copyValue')"
+                      @click="copyDetailFormattedJson"
+                    >
+                      <Copy class="h-3 w-3" />
+                    </Button>
+                  </div>
                   <pre
                     class="max-h-72 overflow-auto rounded border bg-muted/20 p-2 font-mono text-xs whitespace-pre-wrap break-words"
-                  >
-        {{ activeCellDetail.formattedJson }}</pre
+                    >{{ activeCellDetail.formattedJson }}</pre
                   >
                 </div>
               </div>
