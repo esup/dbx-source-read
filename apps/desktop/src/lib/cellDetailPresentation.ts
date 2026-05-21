@@ -5,6 +5,18 @@ export interface CellDetailPresentationOptions {
   isEditable: boolean;
 }
 
+export interface LinkedCellDetailOptions {
+  isOpen: boolean;
+  isEditing: boolean;
+  selectedCell: { rowIndex: number; visibleColIndex: number } | null;
+  actualColumnIndex: (visibleColIndex: number) => number;
+}
+
+export interface CellDetailTarget {
+  rowIndex: number;
+  col: number;
+}
+
 export function defaultCellDetailTab(): CellDetailTab {
   return "details";
 }
@@ -33,6 +45,14 @@ export function valueEditorActions(options: { canSetNull: boolean; canFormatJson
   if (options.canSetNull) actions.push("setNull");
   actions.push("restoreOriginal");
   return actions;
+}
+
+export function linkedCellDetailTarget(options: LinkedCellDetailOptions): CellDetailTarget | null {
+  if (!options.isOpen || options.isEditing || !options.selectedCell) return null;
+  return {
+    rowIndex: options.selectedCell.rowIndex,
+    col: options.actualColumnIndex(options.selectedCell.visibleColIndex),
+  };
 }
 
 export function isJsonColumnType(columnType: string | undefined): boolean {

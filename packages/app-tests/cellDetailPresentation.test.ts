@@ -4,6 +4,7 @@ import {
   canFormatCellDetailJson,
   cellDetailEditorText,
   defaultCellDetailTab,
+  linkedCellDetailTarget,
   visibleCellDetailTabs,
   valueEditorActions,
   type CellDetailPresentationOptions,
@@ -53,4 +54,25 @@ test("cell detail value editor uses cell actions instead of confirm and cancel",
     "restoreOriginal",
   ]);
   assert.deepEqual(valueEditorActions({ canSetNull: false }), ["restoreOriginal"]);
+});
+
+test("cell detail follows the selected grid cell while open", () => {
+  assert.deepEqual(
+    linkedCellDetailTarget({
+      isOpen: true,
+      isEditing: false,
+      selectedCell: { rowIndex: 2, visibleColIndex: 1 },
+      actualColumnIndex: (visibleColIndex) => [0, 3, 5][visibleColIndex] ?? visibleColIndex,
+    }),
+    { rowIndex: 2, col: 3 },
+  );
+});
+
+test("cell detail does not follow selection while closed or editing", () => {
+  const selectedCell = { rowIndex: 2, visibleColIndex: 1 };
+  const actualColumnIndex = (visibleColIndex: number) => visibleColIndex;
+
+  assert.equal(linkedCellDetailTarget({ isOpen: false, isEditing: false, selectedCell, actualColumnIndex }), null);
+  assert.equal(linkedCellDetailTarget({ isOpen: true, isEditing: true, selectedCell, actualColumnIndex }), null);
+  assert.equal(linkedCellDetailTarget({ isOpen: true, isEditing: false, selectedCell: null, actualColumnIndex }), null);
 });

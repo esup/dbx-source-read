@@ -106,6 +106,7 @@ import {
   cellDetailEditorText,
   defaultCellDetailTab,
   formatJsonText,
+  linkedCellDetailTarget,
   valueEditorActions,
   visibleCellDetailTabs,
   type CellDetailTab,
@@ -2191,6 +2192,18 @@ function showCellDetails(rowIndex: number, colIndex: number) {
   activeCellDetailTab.value = defaultCellDetailTab();
   showCellDetail.value = true;
 }
+
+watch([selectedRange, showCellDetail, isEditingDetail], () => {
+  const selectedCell = currentSelectedCellPosition();
+  const target = linkedCellDetailTarget({
+    isOpen: showCellDetail.value,
+    isEditing: isEditingDetail.value,
+    selectedCell: selectedCell ? { rowIndex: selectedCell.rowIndex, visibleColIndex: selectedCell.colIndex } : null,
+    actualColumnIndex,
+  });
+  if (!target) return;
+  detailCell.value = target;
+});
 
 function openImagePreview(src: string, title: string) {
   imagePreviewSrc.value = src;
