@@ -41,6 +41,7 @@ import {
   supportsSourceBackedRoutineRename,
 } from "@/lib/objectSourceEditor";
 import { buildRenameObjectSql, supportsObjectRename } from "@/lib/objectRenameSql";
+import { buildViewDdl } from "@/lib/viewDdl";
 import { useConnectionStore } from "@/stores/connectionStore";
 import { useQueryStore } from "@/stores/queryStore";
 import QueryEditor from "@/components/editor/QueryEditor.vue";
@@ -212,6 +213,29 @@ async function openSource(row: ObjectBrowserRow) {
     sourceError.value = e?.message || String(e);
   } finally {
     sourceLoading.value = false;
+  }
+}
+
+async function openViewDdl(row: ObjectBrowserRow) {
+  if (row.type !== "VIEW") return;
+  try {
+    const result = await api.getObjectSource(
+      props.connection.id,
+      props.database,
+      row.schema || selectedSchema.value || props.database,
+      row.name,
+      "VIEW",
+    );
+    const ddl = buildViewDdl({
+      databaseType: props.connection.db_type,
+      schema: row.schema || selectedSchema.value || props.database,
+      name: row.name,
+      source: result.source,
+    });
+    const tabId = queryStore.createTab(props.connection.id, props.database, `DDL - ${row.name}`);
+    queryStore.updateSql(tabId, ddl);
+  } catch (e: any) {
+    toast(e?.message || String(e), 5000);
   }
 }
 
@@ -658,6 +682,9 @@ watch(
               <template v-else-if="item.type === 'VIEW'">
                 <ContextMenuItem @click="openSource(item)">
                   <Code2 class="w-4 h-4 mr-2" /> {{ t("contextMenu.viewSource") }}
+                </ContextMenuItem>
+                <ContextMenuItem @click="openViewDdl(item)">
+                  <ScrollText class="w-4 h-4 mr-2" /> {{ t("contextMenu.viewDdl") }}
                 </ContextMenuItem>
                 <ContextMenuItem v-if="canRename(item)" @click="requestRename(item)">
                   <Pencil class="w-4 h-4 mr-2" /> {{ t("contextMenu.renameObject") }}

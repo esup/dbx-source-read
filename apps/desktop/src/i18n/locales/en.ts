@@ -708,6 +708,7 @@ export default {
     confirmTruncateTableMessage: 'Are you sure you want to truncate "{name}"? This will remove all rows.',
     dropTableSuccess: 'Table "{name}" dropped',
     viewSource: "View Source",
+    viewDdl: "View DDL",
     dropView: "Drop View",
     dropProcedure: "Drop Procedure",
     dropFunction: "Drop Function",

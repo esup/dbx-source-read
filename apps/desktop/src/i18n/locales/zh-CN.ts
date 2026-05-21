@@ -691,6 +691,7 @@ export default {
     confirmTruncateTableMessage: "确定要截断「{name}」吗？这将删除所有行。",
     dropTableSuccess: "表「{name}」已删除",
     viewSource: "查看源码",
+    viewDdl: "查看 DDL",
     dropView: "删除视图",
     dropProcedure: "删除存储过程",
     dropFunction: "删除函数",

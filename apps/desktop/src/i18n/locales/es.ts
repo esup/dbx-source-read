@@ -610,6 +610,7 @@ export default {
     confirmTruncateTableMessage: '¿Estás seguro de que deseas truncar "{name}"? Esto eliminará todas las filas.',
     dropTableSuccess: 'Tabla "{name}" eliminada',
     viewSource: "Ver código fuente",
+    viewDdl: "Ver DDL",
     dropView: "Eliminar vista",
     dropProcedure: "Eliminar procedimiento",
     dropFunction: "Eliminar función",

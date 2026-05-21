@@ -103,6 +103,7 @@ import {
 } from "@/lib/createDatabaseSql";
 import { buildRenameObjectSql, supportsObjectRename, type RenameableObjectType } from "@/lib/objectRenameSql";
 import { buildRoutineRenameObjectSourceStatements, supportsSourceBackedRoutineRename } from "@/lib/objectSourceEditor";
+import { buildViewDdl } from "@/lib/viewDdl";
 import { hexToRgba } from "@/lib/color";
 import { focusSidebarRenameInput, shouldPreventRenameCloseAutoFocus } from "@/lib/sidebarRenameFocus";
 import { hasTreeNodeDatabaseContext } from "@/lib/treeNodeContext";
@@ -690,6 +691,32 @@ function viewObjectSource() {
         name: node.label,
         objectType,
       });
+    })
+    .catch((e: any) => {
+      toast(e?.message || String(e), 5000);
+    });
+}
+
+function viewObjectDdl() {
+  const node = props.node;
+  if (node.type !== "view" || !node.connectionId || !node.database) return;
+  const schema = node.schema || node.database;
+  connectionStore
+    .ensureConnected(node.connectionId)
+    .then(() => {
+      connectionStore.activeConnectionId = node.connectionId!;
+      return api.getObjectSource(node.connectionId!, node.database!, schema, node.label, "VIEW");
+    })
+    .then((result) => {
+      const connection = connectionStore.getConfig(node.connectionId!);
+      const ddl = buildViewDdl({
+        databaseType: connection?.db_type,
+        schema,
+        name: node.label,
+        source: result.source,
+      });
+      const tabId = queryStore.createTab(node.connectionId!, node.database!, `DDL - ${node.label}`);
+      queryStore.updateSql(tabId, ddl);
     })
     .catch((e: any) => {
       toast(e?.message || String(e), 5000);
@@ -1980,6 +2007,9 @@ const isDragging = computed(() => dragState.active && dragState.draggedId === pr
         </ContextMenuItem>
         <ContextMenuItem v-if="node.type === 'view'" @click="viewObjectSource">
           <Code2 class="w-4 h-4" /> {{ t("contextMenu.viewSource") }}
+        </ContextMenuItem>
+        <ContextMenuItem v-if="node.type === 'view'" @click="viewObjectDdl">
+          <FileCode class="w-4 h-4" /> {{ t("contextMenu.viewDdl") }}
         </ContextMenuItem>
         <ContextMenuItem v-if="canOpenStructureEditor" @click="openStructureEditor">
           <PencilRuler class="w-4 h-4" /> {{ t("contextMenu.editStructure") }}
