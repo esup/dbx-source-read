@@ -1194,9 +1194,9 @@ export default {
     appLayoutSeparatedDescription: "Clear panel separation with block-style tabs.",
     appLayoutClassic: "Classic compact",
     appLayoutClassicDescription: "Continuous tab bar with compact panel headers.",
-    runInBackground: "Keep running after closing window",
-    runInBackgroundDescription:
-      "When enabled, DBX shows a tray/menu bar icon and closing the window keeps it in the background. When disabled, no icon is shown and closing the window quits the app.",
+    showTrayIcon: "Show tray/menu bar icon",
+    showTrayIconDescription:
+      "When disabled, no icon is shown, but closing the window still hides DBX in the background as before.",
     sidebarActivation: "Sidebar activation",
     sidebarActivationSingle: "Single click",
     sidebarActivationSingleDescription: "Open actionable sidebar items with one click.",

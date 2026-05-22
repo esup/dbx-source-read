@@ -468,7 +468,7 @@ export async function loadAiConfig(): Promise<AiConfig | null> {
 }
 
 export async function loadDesktopSettings(): Promise<DesktopSettings> {
-  return { run_in_background: true };
+  return { show_tray_icon: true };
 }
 
 export async function saveDesktopSettings(_settings: DesktopSettings): Promise<void> {

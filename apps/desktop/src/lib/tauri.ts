@@ -41,7 +41,7 @@ export interface JavaRuntimeConfig {
 }
 
 export interface DesktopSettings {
-  run_in_background: boolean;
+  show_tray_icon: boolean;
 }
 
 export interface DriverInstallProgress {

@@ -35,11 +35,11 @@ export interface AiConfig {
 }
 
 export interface DesktopSettings {
-  run_in_background: boolean;
+  show_tray_icon: boolean;
 }
 
 export const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
-  run_in_background: true,
+  show_tray_icon: true,
 };
 
 export interface AiProviderPreset extends Omit<AiConfig, "apiKey"> {

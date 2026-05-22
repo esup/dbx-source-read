@@ -15,12 +15,12 @@ pub struct Storage {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DesktopSettings {
-    pub run_in_background: bool,
+    pub show_tray_icon: bool,
 }
 
 impl Default for DesktopSettings {
     fn default() -> Self {
-        Self { run_in_background: true }
+        Self { show_tray_icon: true }
     }
 }
 
@@ -326,17 +326,18 @@ impl Storage {
 
     pub async fn save_desktop_settings(&self, desktop_settings: &DesktopSettings) -> Result<(), String> {
         let mut settings = self.load_app_settings_json().await?;
-        settings.insert("run_in_background".to_string(), serde_json::Value::Bool(desktop_settings.run_in_background));
+        settings.remove("run_in_background");
+        settings.insert("show_tray_icon".to_string(), serde_json::Value::Bool(desktop_settings.show_tray_icon));
         self.save_app_settings_json(&settings).await
     }
 
     pub async fn load_desktop_settings(&self) -> Result<DesktopSettings, String> {
         let settings = self.load_app_settings_json().await?;
         Ok(DesktopSettings {
-            run_in_background: settings
-                .get("run_in_background")
+            show_tray_icon: settings
+                .get("show_tray_icon")
                 .and_then(|value| value.as_bool())
-                .unwrap_or_else(|| DesktopSettings::default().run_in_background),
+                .unwrap_or_else(|| DesktopSettings::default().show_tray_icon),
         })
     }
 }
@@ -988,7 +989,18 @@ mod tests {
         let path = temp_db_path("desktop-settings-default");
         let storage = Storage::open(&path).await.unwrap();
 
-        assert_eq!(storage.load_desktop_settings().await.unwrap(), DesktopSettings { run_in_background: true });
+        assert_eq!(storage.load_desktop_settings().await.unwrap(), DesktopSettings { show_tray_icon: true });
+    }
+
+    #[tokio::test]
+    async fn desktop_settings_ignore_legacy_background_preference() {
+        let path = temp_db_path("desktop-settings-legacy-background");
+        let storage = Storage::open(&path).await.unwrap();
+        let mut settings = serde_json::Map::new();
+        settings.insert("run_in_background".to_string(), serde_json::Value::Bool(false));
+        storage.save_app_settings_json(&settings).await.unwrap();
+
+        assert_eq!(storage.load_desktop_settings().await.unwrap(), DesktopSettings { show_tray_icon: true });
     }
 
     #[tokio::test]
@@ -997,10 +1009,25 @@ mod tests {
         let storage = Storage::open(&path).await.unwrap();
 
         storage.save_password_hash("hash-1").await.unwrap();
-        storage.save_desktop_settings(&DesktopSettings { run_in_background: false }).await.unwrap();
+        storage.save_desktop_settings(&DesktopSettings { show_tray_icon: false }).await.unwrap();
 
         assert_eq!(storage.load_password_hash().await.unwrap(), Some("hash-1".to_string()));
-        assert_eq!(storage.load_desktop_settings().await.unwrap(), DesktopSettings { run_in_background: false });
+        assert_eq!(storage.load_desktop_settings().await.unwrap(), DesktopSettings { show_tray_icon: false });
+    }
+
+    #[tokio::test]
+    async fn desktop_settings_save_removes_legacy_background_preference() {
+        let path = temp_db_path("desktop-settings-remove-legacy-background");
+        let storage = Storage::open(&path).await.unwrap();
+        let mut settings = serde_json::Map::new();
+        settings.insert("run_in_background".to_string(), serde_json::Value::Bool(false));
+        storage.save_app_settings_json(&settings).await.unwrap();
+
+        storage.save_desktop_settings(&DesktopSettings { show_tray_icon: true }).await.unwrap();
+
+        let settings = storage.load_app_settings_json().await.unwrap();
+        assert_eq!(settings.get("run_in_background"), None);
+        assert_eq!(settings.get("show_tray_icon").and_then(|value| value.as_bool()), Some(true));
     }
 
     #[tokio::test]
@@ -1008,10 +1035,10 @@ mod tests {
         let path = temp_db_path("password-preserve-desktop-settings");
         let storage = Storage::open(&path).await.unwrap();
 
-        storage.save_desktop_settings(&DesktopSettings { run_in_background: false }).await.unwrap();
+        storage.save_desktop_settings(&DesktopSettings { show_tray_icon: false }).await.unwrap();
         storage.save_password_hash("hash-2").await.unwrap();
 
         assert_eq!(storage.load_password_hash().await.unwrap(), Some("hash-2".to_string()));
-        assert_eq!(storage.load_desktop_settings().await.unwrap(), DesktopSettings { run_in_background: false });
+        assert_eq!(storage.load_desktop_settings().await.unwrap(), DesktopSettings { show_tray_icon: false });
     }
 }

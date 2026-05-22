@@ -60,7 +60,7 @@ const editTheme = ref(settingsStore.editorSettings.theme);
 const editExecuteMode = ref(settingsStore.editorSettings.executeMode);
 const editWordWrap = ref(settingsStore.editorSettings.wordWrap);
 const editAppLayout = ref(settingsStore.editorSettings.appLayout);
-const editRunInBackground = ref(settingsStore.desktopSettings.run_in_background);
+const editShowTrayIcon = ref(settingsStore.desktopSettings.show_tray_icon);
 const editRedisScanPageSize = ref(settingsStore.editorSettings.redisScanPageSize);
 const editShortcuts = ref(normalizeShortcutSettings(settingsStore.editorSettings.shortcuts));
 const editSidebarActivation = ref(settingsStore.editorSettings.sidebarActivation);
@@ -124,7 +124,7 @@ watch(
       editExecuteMode.value = settingsStore.editorSettings.executeMode;
       editWordWrap.value = settingsStore.editorSettings.wordWrap;
       editAppLayout.value = settingsStore.editorSettings.appLayout;
-      editRunInBackground.value = settingsStore.desktopSettings.run_in_background;
+      editShowTrayIcon.value = settingsStore.desktopSettings.show_tray_icon;
       editRedisScanPageSize.value = settingsStore.editorSettings.redisScanPageSize;
       editShortcuts.value = normalizeShortcutSettings(settingsStore.editorSettings.shortcuts);
       editSidebarActivation.value = settingsStore.editorSettings.sidebarActivation;
@@ -155,7 +155,7 @@ function hasChanges(): boolean {
     editExecuteMode.value !== settingsStore.editorSettings.executeMode ||
     editWordWrap.value !== settingsStore.editorSettings.wordWrap ||
     editAppLayout.value !== settingsStore.editorSettings.appLayout ||
-    editRunInBackground.value !== settingsStore.desktopSettings.run_in_background ||
+    editShowTrayIcon.value !== settingsStore.desktopSettings.show_tray_icon ||
     editRedisScanPageSize.value !== settingsStore.editorSettings.redisScanPageSize ||
     JSON.stringify(editShortcuts.value) !== JSON.stringify(settingsStore.editorSettings.shortcuts) ||
     editSidebarActivation.value !== settingsStore.editorSettings.sidebarActivation ||
@@ -181,7 +181,7 @@ async function applySettings() {
     sidebarHiddenTablePrefixes: normalizeSidebarHiddenTablePrefixes(editSidebarHiddenTablePrefixes.value),
   });
   await settingsStore.updateDesktopSettings({
-    run_in_background: editRunInBackground.value,
+    show_tray_icon: editShowTrayIcon.value,
   });
   emit("update:open", false);
 }
@@ -193,7 +193,7 @@ function resetDefaults() {
   editExecuteMode.value = DEFAULT_EDITOR_SETTINGS.executeMode;
   editWordWrap.value = DEFAULT_EDITOR_SETTINGS.wordWrap;
   editAppLayout.value = DEFAULT_EDITOR_SETTINGS.appLayout;
-  editRunInBackground.value = DEFAULT_DESKTOP_SETTINGS.run_in_background;
+  editShowTrayIcon.value = DEFAULT_DESKTOP_SETTINGS.show_tray_icon;
   editRedisScanPageSize.value = DEFAULT_EDITOR_SETTINGS.redisScanPageSize;
   editShortcuts.value = normalizeShortcutSettings(DEFAULT_EDITOR_SETTINGS.shortcuts);
   editSidebarActivation.value = DEFAULT_EDITOR_SETTINGS.sidebarActivation;
@@ -301,7 +301,7 @@ watch(
       confirmNewPassword.value = "";
       await settingsStore.initAiConfig();
       await settingsStore.initDesktopSettings();
-      editRunInBackground.value = settingsStore.desktopSettings.run_in_background;
+      editShowTrayIcon.value = settingsStore.desktopSettings.show_tray_icon;
       syncAiEditState();
     }
   },
@@ -840,10 +840,10 @@ watch(
                 class="flex items-center justify-between gap-4 rounded-md border bg-muted/20 px-3 py-2"
               >
                 <div class="space-y-1">
-                  <Label for="run-in-background">{{ t("settings.runInBackground") }}</Label>
-                  <p class="text-xs text-muted-foreground">{{ t("settings.runInBackgroundDescription") }}</p>
+                  <Label for="show-tray-icon">{{ t("settings.showTrayIcon") }}</Label>
+                  <p class="text-xs text-muted-foreground">{{ t("settings.showTrayIconDescription") }}</p>
                 </div>
-                <Switch id="run-in-background" v-model="editRunInBackground" />
+                <Switch id="show-tray-icon" v-model="editShowTrayIcon" />
               </div>
             </section>
 

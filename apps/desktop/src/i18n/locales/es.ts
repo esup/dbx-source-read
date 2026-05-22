@@ -1092,9 +1092,9 @@ export default {
     appLayoutSeparatedDescription: "Separación clara de paneles con pestañas en bloque.",
     appLayoutClassic: "Clásico compacto",
     appLayoutClassicDescription: "Barra de pestañas continua con encabezados de panel compactos.",
-    runInBackground: "Seguir ejecutando al cerrar la ventana",
-    runInBackgroundDescription:
-      "Si está activado, DBX muestra un icono en la bandeja/barra de menú y cerrar la ventana lo deja en segundo plano. Si está desactivado, no se muestra el icono y cerrar la ventana sale de la app.",
+    showTrayIcon: "Mostrar icono en bandeja/barra de menú",
+    showTrayIconDescription:
+      "Si está desactivado, no se muestra el icono, pero cerrar la ventana sigue ocultando DBX en segundo plano como antes.",
     sidebarActivation: "Activación de la barra lateral",
     sidebarActivationSingle: "Un clic",
     sidebarActivationSingleDescription: "Abrir elementos accionables de la barra lateral con un clic.",

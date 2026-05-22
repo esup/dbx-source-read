@@ -5,11 +5,8 @@ mod models;
 mod window_state_guard;
 
 use commands::connection::AppState;
-use dbx_core::storage::{DesktopSettings, Storage};
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
+use dbx_core::storage::Storage;
+use std::sync::Arc;
 use std::time::Instant;
 use tauri::{
     menu::MenuBuilder,
@@ -21,30 +18,12 @@ use tauri_plugin_deep_link::DeepLinkExt;
 
 const DESKTOP_TRAY_ID: &str = "main-tray";
 
-pub(crate) struct WindowBehaviorState {
-    run_in_background: AtomicBool,
+fn should_hide_window_on_close(target_os: &str) -> bool {
+    matches!(target_os, "macos" | "windows")
 }
 
-impl WindowBehaviorState {
-    fn new(settings: &DesktopSettings) -> Self {
-        Self { run_in_background: AtomicBool::new(settings.run_in_background) }
-    }
-
-    pub(crate) fn run_in_background(&self) -> bool {
-        self.run_in_background.load(Ordering::Relaxed)
-    }
-
-    pub(crate) fn set_run_in_background(&self, value: bool) {
-        self.run_in_background.store(value, Ordering::Relaxed);
-    }
-}
-
-fn should_hide_window_on_close(target_os: &str, run_in_background: bool) -> bool {
-    run_in_background && matches!(target_os, "macos" | "windows")
-}
-
-fn should_setup_desktop_tray(target_os: &str, run_in_background: bool) -> bool {
-    run_in_background && matches!(target_os, "macos" | "windows")
+fn should_setup_desktop_tray(target_os: &str, show_tray_icon: bool) -> bool {
+    show_tray_icon && matches!(target_os, "macos" | "windows")
 }
 
 fn should_show_main_window_after_setup() -> bool {
@@ -75,6 +54,10 @@ fn setup_desktop_tray<R: tauri::Runtime, M: Manager<R>>(manager: &M) -> tauri::R
     let menu = MenuBuilder::new(manager).text("show", "Show DBX").separator().text("quit", "Quit DBX").build()?;
     let mut tray =
         TrayIconBuilder::<R>::with_id(DESKTOP_TRAY_ID).tooltip("DBX").menu(&menu).show_menu_on_left_click(false);
+    #[cfg(target_os = "macos")]
+    {
+        tray = tray.title("DBX");
+    }
 
     if let Some(icon) = manager.app_handle().default_window_icon().cloned() {
         tray = tray.icon(icon);
@@ -97,13 +80,13 @@ fn setup_desktop_tray<R: tauri::Runtime, M: Manager<R>>(manager: &M) -> tauri::R
     Ok(())
 }
 
-pub(crate) fn apply_desktop_tray_preference(app: &tauri::AppHandle, run_in_background: bool) -> tauri::Result<()> {
-    if should_setup_desktop_tray(std::env::consts::OS, run_in_background) {
-        if app.tray_by_id(DESKTOP_TRAY_ID).is_none() {
+pub(crate) fn apply_desktop_tray_preference(app: &tauri::AppHandle, show_tray_icon: bool) -> tauri::Result<()> {
+    if matches!(std::env::consts::OS, "macos" | "windows") {
+        if let Some(tray) = app.tray_by_id(DESKTOP_TRAY_ID) {
+            tray.set_visible(show_tray_icon)?;
+        } else if show_tray_icon {
             setup_desktop_tray(app)?;
         }
-    } else {
-        let _ = app.remove_tray_by_id(DESKTOP_TRAY_ID);
     }
     Ok(())
 }
@@ -114,15 +97,13 @@ mod tests {
 
     #[test]
     fn hides_window_on_close_for_windows_and_macos() {
-        assert!(should_hide_window_on_close("windows", true));
-        assert!(should_hide_window_on_close("macos", true));
-        assert!(!should_hide_window_on_close("windows", false));
-        assert!(!should_hide_window_on_close("macos", false));
+        assert!(should_hide_window_on_close("windows"));
+        assert!(should_hide_window_on_close("macos"));
     }
 
     #[test]
     fn does_not_hide_window_on_close_for_other_platforms() {
-        assert!(!should_hide_window_on_close("linux", true));
+        assert!(!should_hide_window_on_close("linux"));
     }
 
     #[test]
@@ -134,8 +115,23 @@ mod tests {
         assert!(!should_setup_desktop_tray("linux", true));
         let source = include_str!("lib.rs");
         assert!(source.contains(
-            "if should_setup_desktop_tray(std::env::consts::OS, desktop_settings.run_in_background) {\n                setup_desktop_tray(app)?;"
+            "if should_setup_desktop_tray(std::env::consts::OS, desktop_settings.show_tray_icon) {\n                setup_desktop_tray(app)?;"
         ));
+    }
+
+    #[test]
+    fn tray_preference_hides_existing_tray_instead_of_removing_it() {
+        let source = include_str!("lib.rs");
+        assert!(source.contains("tray.set_visible(show_tray_icon)?;"));
+        let remove_call = concat!("remove", "_tray_by_id");
+        assert!(!source.contains(remove_call));
+    }
+
+    #[test]
+    fn desktop_settings_save_treats_runtime_tray_update_as_best_effort() {
+        let source = include_str!("commands/app_settings.rs");
+        assert!(source.contains("if let Err(err) = apply_desktop_tray_preference"));
+        assert!(!source.contains("map_err(|err| err.to_string())"));
     }
 
     #[test]
@@ -206,7 +202,6 @@ pub fn run() {
                 env!("CARGO_PKG_VERSION"),
             ));
             app.manage(state.clone());
-            app.manage(WindowBehaviorState::new(&desktop_settings));
             app.manage(commands::external_sql::ExternalSqlOpenState::default());
             app.manage(commands::deep_link::DeepLinkOpenState::default());
             let startup_links = commands::deep_link::connection_deep_links_from_args(std::env::args().skip(1));
@@ -222,7 +217,7 @@ pub fn run() {
                     let _ = window.set_decorations(false);
                 }
             }
-            if should_setup_desktop_tray(std::env::consts::OS, desktop_settings.run_in_background) {
+            if should_setup_desktop_tray(std::env::consts::OS, desktop_settings.show_tray_icon) {
                 setup_desktop_tray(app)?;
             }
             window_state_guard::enforce_main_window_bounds(app.handle());
@@ -236,16 +231,9 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let run_in_background = window
-                    .app_handle()
-                    .try_state::<WindowBehaviorState>()
-                    .map(|state| state.run_in_background())
-                    .unwrap_or_else(|| DesktopSettings::default().run_in_background);
-                if should_hide_window_on_close(std::env::consts::OS, run_in_background) {
+                if should_hide_window_on_close(std::env::consts::OS) {
                     let _ = window.hide();
                     api.prevent_close();
-                } else {
-                    window.app_handle().exit(0);
                 }
             }
         })
