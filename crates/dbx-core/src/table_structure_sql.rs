@@ -1392,6 +1392,8 @@ mod tests {
             table_name: "users".to_string(),
             columns: vec![renamed, email],
             indexes: vec![old_index, email_index],
+            table_comment: None,
+            original_table_comment: None,
         });
 
         assert_eq!(result.warnings, Vec::<String>::new());
@@ -1418,6 +1420,8 @@ mod tests {
             table_name: "users".to_string(),
             columns: vec![created_at],
             indexes: Vec::new(),
+            table_comment: None,
+            original_table_comment: None,
         });
 
         assert_eq!(result.warnings, Vec::<String>::new());
@@ -1439,6 +1443,8 @@ mod tests {
             table_name: "users".to_string(),
             columns: vec![created_at],
             indexes: Vec::new(),
+            table_comment: None,
+            original_table_comment: None,
         });
 
         assert_eq!(result.warnings, Vec::<String>::new());
@@ -1467,6 +1473,8 @@ mod tests {
             table_name: "users".to_string(),
             columns: vec![id, name],
             indexes: vec![idx],
+            table_comment: None,
+            original_table_comment: None,
         });
 
         assert_eq!(result.warnings, Vec::<String>::new());
@@ -1501,6 +1509,8 @@ mod tests {
             table_name: "users".to_string(),
             columns: vec![col],
             indexes: Vec::new(),
+            table_comment: None,
+            original_table_comment: None,
         });
 
         assert_eq!(result.statements, Vec::<String>::new());
@@ -1559,6 +1569,8 @@ mod tests {
             table_name: "users".to_string(),
             columns: vec![id, email, name],
             indexes: Vec::new(),
+            table_comment: None,
+            original_table_comment: None,
         });
 
         assert_eq!(result.warnings, Vec::<String>::new());
@@ -1583,6 +1595,8 @@ mod tests {
             table_name: "users".to_string(),
             columns: vec![email],
             indexes: vec![index("idx_users_email", &["email"])],
+            table_comment: None,
+            original_table_comment: None,
         });
 
         assert_eq!(result.warnings, Vec::<String>::new());
@@ -1610,6 +1624,8 @@ mod tests {
             table_name: "events".to_string(),
             columns: vec![name, created_at],
             indexes: vec![index("idx_events_name", &["name"])],
+            table_comment: None,
+            original_table_comment: None,
         });
 
         assert_eq!(result.warnings, Vec::<String>::new());
@@ -1648,6 +1664,8 @@ mod tests {
             table_name: "events".to_string(),
             columns: vec![source, status],
             indexes: Vec::new(),
+            table_comment: None,
+            original_table_comment: None,
         });
 
         assert_eq!(result.warnings, Vec::<String>::new());
@@ -1687,6 +1705,8 @@ mod tests {
             table_name: "USERS".to_string(),
             columns: vec![name],
             indexes: vec![index("IDX_USERS_DISPLAY_NAME", &["DISPLAY_NAME"])],
+            table_comment: None,
+            original_table_comment: None,
         });
 
         assert_eq!(result.warnings, Vec::<String>::new());
@@ -1725,6 +1745,8 @@ mod tests {
             table_name: "users".to_string(),
             columns: vec![id],
             indexes: Vec::new(),
+            table_comment: None,
+            original_table_comment: None,
         });
 
         assert_eq!(result.warnings, Vec::<String>::new());
@@ -1753,6 +1775,8 @@ mod tests {
             table_name: "users".to_string(),
             columns: vec![id],
             indexes: Vec::new(),
+            table_comment: None,
+            original_table_comment: None,
         });
 
         assert_eq!(result.warnings, Vec::<String>::new());
@@ -1797,6 +1821,8 @@ mod tests {
             table_name: "users".to_string(),
             columns: vec![old_pk, new_pk],
             indexes: Vec::new(),
+            table_comment: None,
+            original_table_comment: None,
         });
 
         assert_eq!(result.warnings, Vec::<String>::new());
@@ -1828,6 +1854,8 @@ mod tests {
             table_name: "users".to_string(),
             columns: vec![id],
             indexes: Vec::new(),
+            table_comment: None,
+            original_table_comment: None,
         });
 
         assert_eq!(result.warnings, Vec::<String>::new());
@@ -1856,6 +1884,8 @@ mod tests {
             table_name: "users".to_string(),
             columns: vec![id],
             indexes: Vec::new(),
+            table_comment: None,
+            original_table_comment: None,
         });
 
         assert_eq!(result.statements, Vec::<String>::new());

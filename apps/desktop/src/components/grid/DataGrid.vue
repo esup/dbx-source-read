@@ -1925,9 +1925,14 @@ const {
   hasCellSelection,
   clearCellSelection,
   selectSingleCell,
+  selectRow,
+  selectColumn,
+  selectAllCells,
+  extendCellSelectionTo,
   finishCellSelection,
   extendCellSelection,
   cellIsSelected,
+  columnIsSelected,
   selectedRangeStart,
   selectedRowIds,
   hasRowSelection,
@@ -1951,6 +1956,12 @@ const multiRowCount = computed(() => {
 });
 
 const isMultiRow = computed(() => multiRowCount.value > 1);
+const copyRowJsonLabel = computed(() => {
+  if (isTransposeMode.value) {
+    return isMultiRow.value ? t("grid.copyColumnsJson", { count: multiRowCount.value }) : t("grid.copyColumnJson");
+  }
+  return isMultiRow.value ? t("grid.copyRows", { count: multiRowCount.value }) : t("grid.copyRow");
+});
 
 function onCellMouseenter(rowIndex: number, visibleColIdx: number, actualColIdx: number) {
   hoveredDetailCell.value = { rowIndex, col: actualColIdx };
@@ -2002,6 +2013,9 @@ function isRowActive(index: number): boolean {
   if (item && isRowSelected(item.id)) return true;
   const range = selectedRange.value;
   if (!range) return false;
+  const coversAllVisibleRows = range.startRow === 0 && range.endRow >= displayItems.value.length - 1;
+  const coversAllVisibleColumns = range.startCol === 0 && range.endCol >= visibleColumnCount.value - 1;
+  if (coversAllVisibleRows && !coversAllVisibleColumns) return false;
   return index >= range.startRow && index <= range.endRow;
 }
 
@@ -2495,6 +2509,7 @@ const {
   copySelectionCsv,
   copySelectionJson,
   copySelectionSqlInList,
+  copySelectedRowsTsv,
   exportCsv,
   exportJson,
   exportMarkdown,
@@ -2528,6 +2543,37 @@ function showCellDetailsForVisibleCell(rowIndex: number, visibleColIdx: number, 
   clearRowSelection();
   selectSingleCell(rowIndex, visibleColIdx);
   showCellDetails(rowIndex, actualColIdx);
+}
+
+function transposeCellIsSelected(rowIndex: number, actualColIdx: number) {
+  const visibleColIdx = visibleColumnIndexes.value.indexOf(actualColIdx);
+  return visibleColIdx >= 0 && cellIsSelected(rowIndex, visibleColIdx);
+}
+
+function onTransposeCellMouseenter(rowIndex: number, actualColIdx: number) {
+  hoveredDetailCell.value = { rowIndex, col: actualColIdx };
+}
+
+function selectTransposeCell(rowIndex: number, actualColIdx: number, event: MouseEvent) {
+  const visibleColIdx = visibleColumnIndexes.value.indexOf(actualColIdx);
+  if (visibleColIdx < 0) return;
+  contextHeaderColumn.value = null;
+  clearRowSelection();
+  if (event.shiftKey || event.metaKey || event.ctrlKey) {
+    extendCellSelectionTo(rowIndex, visibleColIdx);
+  } else {
+    selectSingleCell(rowIndex, visibleColIdx);
+  }
+  transposeRowIndex.value = rowIndex;
+  showCellDetails(rowIndex, actualColIdx);
+  gridRef.value?.focus({ preventScroll: true });
+}
+
+function onTransposeCellContext(rowIndex: number, actualColIdx: number, event: MouseEvent) {
+  selectTransposeCell(rowIndex, actualColIdx, event);
+  const item = displayItems.value[rowIndex];
+  contextCell.value = item ? { rowId: item.id, rowIndex, col: actualColIdx } : null;
+  void prefetchCopyStatements();
 }
 
 watch([selectedRange, showCellDetail, isEditingDetail], () => {
@@ -2609,6 +2655,23 @@ function scrollCellIntoView(rowIndex: number, colIndex: number) {
   });
 }
 
+function scrollGridRowIntoView(rowIndex: number) {
+  const target = Math.max(0, Math.min(displayItems.value.length - 1, rowIndex));
+  nextTick(() => {
+    const scroller = scrollerRef.value;
+    if (scroller && !(scroller instanceof HTMLElement)) {
+      scroller.scrollToItem?.(target);
+      scroller.scrollToPosition?.(target * 26);
+    } else if (scroller instanceof HTMLElement) {
+      scroller.scrollTop = target * 26;
+    }
+    requestAnimationFrame(() => {
+      const rowEl = gridRef.value?.querySelector<HTMLElement>(`[data-row-index="${target}"]`);
+      rowEl?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    });
+  });
+}
+
 function currentTransposeRequestedRowIndex(): number {
   const position = currentSelectedCellPosition();
   if (position) return position.rowIndex;
@@ -2618,10 +2681,11 @@ function currentTransposeRequestedRowIndex(): number {
 
 function toggleKeyboardTranspose(): boolean {
   if (displayItems.value.length === 0) return false;
+  const requestedRowIndex = currentTransposeRequestedRowIndex();
   const next = nextKeyboardTransposeState({
     showTranspose: showTranspose.value,
     transposeRowIndex: transposeRowIndex.value,
-    requestedRowIndex: currentTransposeRequestedRowIndex(),
+    requestedRowIndex,
     rowIds: displayItems.value.map((item) => item.id),
     selectedRowIds: selectedRowIds.value,
     selectedRange: selectedRange.value,
@@ -2632,6 +2696,8 @@ function toggleKeyboardTranspose(): boolean {
     closeCellDetails();
     nextTick(updateTransposeViewport);
     if (next.transposeRowIndex !== null) scrollTransposeRecordIntoView(next.transposeRowIndex);
+  } else {
+    scrollGridRowIntoView(requestedRowIndex);
   }
   return true;
 }
@@ -2746,9 +2812,23 @@ async function onGridKeydown(event: KeyboardEvent) {
     return;
   }
   if (clipboardShortcut(event, "c")) {
-    if (!hasCellSelection.value) return;
+    if (!hasCellSelection.value && !hasRowSelection.value) return;
     event.preventDefault();
-    copySelectionTsv();
+    if (isTransposeMode.value && hasRowSelection.value) {
+      copyRow();
+      return;
+    }
+    if (hasCellSelection.value) {
+      copySelectionTsv();
+    } else {
+      copySelectedRowsTsv();
+    }
+    return;
+  }
+  if (clipboardShortcut(event, "a")) {
+    if (!hasData.value) return;
+    event.preventDefault();
+    selectAllCells();
     return;
   }
   if (clipboardShortcut(event, "x")) {
@@ -2905,9 +2985,17 @@ function onTransposeRecordResizeStart(event: MouseEvent) {
   document.addEventListener("mouseup", onUp);
 }
 
-function closeTranspose() {
+function currentTransposeViewportRowIndex(): number {
+  if (displayItems.value.length === 0) return 0;
+  const rowIndex = transposeRowIndex.value ?? transposeRecordWindow.value.start;
+  return Math.max(0, Math.min(displayItems.value.length - 1, rowIndex));
+}
+
+function closeTranspose(scrollToCurrentRecord = true) {
+  const rowIndex = currentTransposeViewportRowIndex();
   showTranspose.value = false;
   transposeRowIndex.value = null;
+  if (scrollToCurrentRecord) scrollGridRowIntoView(rowIndex);
 }
 
 function openContextTranspose() {
@@ -2941,12 +3029,27 @@ function toggleTranspose(rowIndex: number) {
     closeCellDetails();
     nextTick(updateTransposeViewport);
     if (next.transposeRowIndex !== null) scrollTransposeRecordIntoView(next.transposeRowIndex);
+  } else {
+    scrollGridRowIntoView(rowIndex);
   }
 }
 
-function selectTransposeRecord(rowIndex: number) {
+function selectTransposeRecord(rowIndex: number, event?: MouseEvent) {
   if (rowIndex < 0 || rowIndex >= displayItems.value.length) return;
   transposeRowIndex.value = rowIndex;
+  contextHeaderColumn.value = null;
+  const item = displayItems.value[rowIndex];
+  if (item) {
+    if (event) {
+      handleRowClick(rowIndex, item.id, event);
+    } else {
+      selectedRowIds.value = new Set([item.id]);
+      selection.lastClickedRowIndex.value = rowIndex;
+      selectRow(rowIndex);
+    }
+    contextCell.value = { rowId: item.id, rowIndex, col: -1 };
+    void prefetchCopyStatements();
+  }
   gridRef.value?.focus({ preventScroll: true });
 }
 
@@ -2984,7 +3087,7 @@ watch(
         nextTransposeStateForRecordCount(showTranspose.value, transposeRowIndex.value, displayItems.value.length),
       );
     } else {
-      closeTranspose();
+      closeTranspose(false);
     }
     exitTransaction();
   },
@@ -3329,36 +3432,7 @@ onUnmounted(() => {
   clearInterval(_loadingTimer);
 });
 
-const SQL_KEYWORDS =
-  /\b(CREATE|TABLE|INDEX|UNIQUE|PRIMARY|KEY|FOREIGN|REFERENCES|CONSTRAINT|NOT|NULL|DEFAULT|INT|INTEGER|BIGINT|SMALLINT|VARCHAR|CHARACTER|VARYING|TEXT|BOOLEAN|DOUBLE|PRECISION|REAL|FLOAT|NUMERIC|DECIMAL|TIMESTAMP|DATE|TIME|SERIAL|AUTOINCREMENT|AUTO_INCREMENT|IF|EXISTS|ON|SET|CASCADE|RESTRICT|CHECK|WITH|WITHOUT|ZONE)\b/gi;
-
 const highlightedDdlContent = computed(() => highlight(ddlContent.value));
-
-function highlightSql(sql: string): string {
-  const tokens: string[] = [];
-  let rest = sql;
-  const re = /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g;
-  let match: RegExpExecArray | null;
-  let last = 0;
-  while ((match = re.exec(rest)) !== null) {
-    if (match.index > last) tokens.push(escapeAndHighlightKeywords(rest.slice(last, match.index)));
-    const q = match[1];
-    const escaped = q.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const cls = q.startsWith('"') ? "ddl-ident" : "ddl-str";
-    tokens.push(`<span class="${cls}">${escaped}</span>`);
-    last = re.lastIndex;
-  }
-  if (last < rest.length) tokens.push(escapeAndHighlightKeywords(rest.slice(last)));
-  return tokens.join("");
-}
-
-function escapeAndHighlightKeywords(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(SQL_KEYWORDS, '<span class="ddl-kw">$1</span>');
-}
 
 defineExpose({
   useTransaction,
@@ -3920,7 +3994,8 @@ defineExpose({
                             : 'bg-[rgb(239_239_239)] dark:bg-muted'
                         "
                         :style="{ width: `${transposeRecordWidth}px` }"
-                        @click="selectTransposeRecord(recordIndex)"
+                        @click="selectTransposeRecord(recordIndex, $event)"
+                        @contextmenu="selectTransposeRecord(recordIndex, $event)"
                       >
                         {{ recordIndex + 1 }}
                         <div
@@ -3950,6 +4025,12 @@ defineExpose({
                         class="relative shrink-0 border-r border-border/70 px-2 py-1.5 font-mono truncate"
                         :class="{
                           'text-muted-foreground italic': cell.isNull,
+                          'cell-selected':
+                            transposeCellIsSelected(cell.recordIndex, cell.valueIndex) &&
+                            !displayItems[cell.recordIndex]?.isDirtyCol[cell.valueIndex],
+                          'cell-selected-dirty':
+                            transposeCellIsSelected(cell.recordIndex, cell.valueIndex) &&
+                            displayItems[cell.recordIndex]?.isDirtyCol[cell.valueIndex],
                           'bg-primary/10': cell.recordIndex === transposeRowIndex,
                           'bg-yellow-500/10 cell-dirty': displayItems[cell.recordIndex]?.isDirtyCol[cell.valueIndex],
                           'cursor-text hover:bg-accent/50': canEditCellItem(
@@ -3959,7 +4040,10 @@ defineExpose({
                         }"
                         :style="{ width: `${transposeRecordWidth}px` }"
                         :title="cell.display"
-                        @click="selectTransposeRecord(cell.recordIndex)"
+                        @click="selectTransposeCell(cell.recordIndex, cell.valueIndex, $event)"
+                        @mouseenter="onTransposeCellMouseenter(cell.recordIndex, cell.valueIndex)"
+                        @mouseleave="onCellMouseleave(cell.recordIndex, cell.valueIndex)"
+                        @contextmenu="onTransposeCellContext(cell.recordIndex, cell.valueIndex, $event)"
                         @dblclick.stop="
                           canEditCellItem(displayItems[cell.recordIndex], cell.valueIndex) &&
                           startEdit(displayItems[cell.recordIndex].id, cell.valueIndex)
@@ -3992,6 +4076,15 @@ defineExpose({
                         </template>
                         <template v-else>
                           {{ cell.display }}
+                          <button
+                            v-if="cellDetailButtonVisible(cell.recordIndex, cell.valueIndex)"
+                            class="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded bg-background/90 text-muted-foreground shadow-sm ring-1 ring-border hover:text-foreground"
+                            :title="t('grid.cellDetails')"
+                            @mousedown.stop
+                            @click.stop="showCellDetails(cell.recordIndex, cell.valueIndex)"
+                          >
+                            <Info class="h-3 w-3" />
+                          </button>
                         </template>
                       </div>
                       <div class="shrink-0" :style="{ width: `${transposeRecordWindow.afterWidth}px` }" />
@@ -4007,8 +4100,9 @@ defineExpose({
                 >
                   <div class="flex text-xs font-semibold text-foreground" :style="{ width: 'var(--header-total-w)' }">
                     <div
-                      class="shrink-0 px-2 py-1.5 border-r border-border text-center text-muted-foreground select-none"
+                      class="shrink-0 px-2 py-1.5 border-r border-border text-center text-muted-foreground select-none cursor-pointer hover:bg-accent/60"
                       :style="{ width: 'var(--row-num-w)' }"
+                      @click="selectAllCells"
                     >
                       #
                     </div>
@@ -4018,18 +4112,16 @@ defineExpose({
                           class="shrink-0 px-2 py-1.5 border-r border-border whitespace-nowrap hover:bg-accent/60 select-none relative overflow-hidden"
                           :class="{
                             'bg-primary/15 ring-1 ring-inset ring-primary/40':
-                              highlightedColumnIndex === actualColumnIndex(colIdx),
+                              highlightedColumnIndex === actualColumnIndex(colIdx) || columnIsSelected(colIdx),
                           }"
                           :style="{ width: `var(--col-w-${colIdx})` }"
                           :data-grid-column-index="actualColumnIndex(colIdx)"
+                          @click="selectColumn(colIdx, $event)"
                           @contextmenu="onHeaderContext(col)"
                         >
                           <span class="flex min-w-0 items-center gap-1 overflow-hidden">
                             <span class="flex min-w-0 flex-1 flex-col overflow-hidden">
-                              <span
-                                class="min-w-0 truncate cursor-pointer leading-4"
-                                @click="toggleSort(col, actualColumnIndex(colIdx))"
-                              >
+                              <span class="min-w-0 truncate leading-4">
                                 {{ col }}
                               </span>
                               <span
@@ -5158,7 +5250,7 @@ defineExpose({
           <ContextMenuSubContent class="w-max max-w-[min(80vw,18rem)]">
             <ContextMenuItem v-if="contextColumn" @click="copyCell">{{ t("grid.copyCell") }}</ContextMenuItem>
             <ContextMenuItem @click="copyRow">
-              {{ isMultiRow ? t("grid.copyRows", { count: multiRowCount }) : t("grid.copyRow") }}
+              {{ copyRowJsonLabel }}
             </ContextMenuItem>
             <ContextMenuItem :disabled="!canCopyPreparedInsert(false)" @click="copyRowAsInsert">
               {{ isMultiRow ? t("grid.copyRowsInsert", { count: multiRowCount }) : t("grid.copyRowInsert") }}

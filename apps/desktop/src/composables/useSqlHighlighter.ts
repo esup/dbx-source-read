@@ -1,4 +1,4 @@
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useTheme } from "@/composables/useTheme";
 import { type SqlHighlighter, createShikiSqlHighlighter } from "@/lib/sqlHighlighter";
 
