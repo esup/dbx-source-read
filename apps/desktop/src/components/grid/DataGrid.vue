@@ -2444,24 +2444,6 @@ function toggleSort(colName: string, colIdx: number) {
   }
 }
 
-function applyHeaderSort(colName: string, colIdx: number, direction: "asc" | "desc" | null) {
-  if (getIsResizing()) return;
-  currentPage.value = 1;
-  resetGridVerticalScroll(true);
-  if (direction) {
-    sortCol.value = colName;
-    sortColIndex.value = colIdx;
-    sortDir.value = direction;
-    syncOrderByInputWithSort(colName, direction);
-  } else {
-    sortCol.value = null;
-    sortColIndex.value = null;
-    sortDir.value = "asc";
-    syncOrderByInputWithSort(null, null);
-  }
-  emit("sort", colName, colIdx, direction, currentWhereInput());
-}
-
 function applyContextSort(direction: "asc" | "desc" | null) {
   if (!contextColumn.value || !contextCell.value) return;
   const column = contextColumn.value;
