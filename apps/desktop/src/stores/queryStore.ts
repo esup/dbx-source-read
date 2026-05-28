@@ -10,10 +10,13 @@ import { buildExplainSql, parseExplainResult } from "@/lib/explainPlan";
 import { allEditableColumnsWriteable, allPrimaryKeysPresent, sourceColumnsForResult } from "@/lib/sqlAnalysis";
 import { restoreOpenTabsState, serializeOpenTabs } from "@/lib/openTabsPersistence";
 import {
+  evaluateMongoAggregateSafety,
   mongoCountToQueryResult,
   mongoDocumentsToQueryResult,
+  parseMongoAggregateCommand,
   parseMongoCountDocumentsCommand,
   parseMongoFindCommand,
+  type MongoAggregateSafetyOptions,
 } from "@/lib/mongoShellCommand";
 import { AGENT_DRIVER_TYPES } from "@/lib/databaseCapabilities";
 import { editablePrimaryKeys } from "@/lib/tableEditing";
@@ -527,6 +530,7 @@ export const useQueryStore = defineStore("query", () => {
       resultBaseSql?: string;
       resultSortedSql?: string | undefined;
       pagination?: { limit: number; offset: number; sessionId?: string };
+      mongoSafety?: MongoAggregateSafetyOptions;
     },
   ) {
     const tab = tabs.value.find((t) => t.id === id);
@@ -589,6 +593,7 @@ export const useQueryStore = defineStore("query", () => {
       }
       const mongoFind = conn?.db_type === "mongodb" ? parseMongoFindCommand(sql) : null;
       if (mongoFind) {
+        await connStore.ensureConnected(tab.connectionId);
         console.info("[DBX][executeTabSql:mongo-find:start]", { traceId, collection: mongoFind.collection });
         const result = await api.mongoFindDocuments(
           tab.connectionId,
@@ -621,6 +626,7 @@ export const useQueryStore = defineStore("query", () => {
       }
       const mongoCount = conn?.db_type === "mongodb" ? parseMongoCountDocumentsCommand(sql) : null;
       if (mongoCount) {
+        await connStore.ensureConnected(tab.connectionId);
         console.info("[DBX][executeTabSql:mongo-count:start]", { traceId, collection: mongoCount.collection });
         const result = await api.mongoFindDocuments(
           tab.connectionId,
@@ -640,6 +646,42 @@ export const useQueryStore = defineStore("query", () => {
           current.results = undefined;
           current.activeResultIndex = undefined;
           current.result = mongoCountToQueryResult(result.total, performance.now() - startedAt);
+          current.queryAnalysis = undefined;
+          current.querySourceColumns = undefined;
+          current.queryEditabilityReason = undefined;
+          current.tableMeta = undefined;
+          current.resultBaseSql = options?.resultBaseSql ?? sql;
+          current.resultSortedSql = options?.resultSortedSql;
+        }
+        return;
+      }
+
+      const mongoAggregate = conn?.db_type === "mongodb" ? parseMongoAggregateCommand(sql) : null;
+      if (mongoAggregate) {
+        if (options?.mongoSafety) {
+          const safety = evaluateMongoAggregateSafety(mongoAggregate, options.mongoSafety);
+          if (!safety.allowed) throw new Error(safety.reason);
+        }
+        await connStore.ensureConnected(tab.connectionId);
+        console.info("[DBX][executeTabSql:mongo-aggregate:start]", { traceId, collection: mongoAggregate.collection });
+        const result = await api.mongoAggregateDocuments(
+          tab.connectionId,
+          tab.database,
+          mongoAggregate.collection,
+          mongoAggregate.pipeline,
+          pageLimit,
+        );
+        console.info("[DBX][executeTabSql:mongo-aggregate:done]", {
+          traceId,
+          rowCount: result.documents.length,
+          total: result.total,
+          elapsed: elapsed(),
+        });
+        const current = tabs.value.find((t) => t.id === id);
+        if (current?.executionId === executionId) {
+          current.results = undefined;
+          current.activeResultIndex = undefined;
+          current.result = mongoDocumentsToQueryResult(result.documents, performance.now() - startedAt, result.total);
           current.queryAnalysis = undefined;
           current.querySourceColumns = undefined;
           current.queryEditabilityReason = undefined;

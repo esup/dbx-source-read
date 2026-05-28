@@ -8,11 +8,11 @@ use commands::connection::AppState;
 use dbx_core::storage::Storage;
 use std::sync::Arc;
 use std::time::Instant;
+use tauri::Manager;
 use tauri::{
     menu::MenuBuilder,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
-use tauri::Manager;
 #[cfg(target_os = "macos")]
 use tauri::{Emitter, RunEvent};
 #[cfg(any(windows, target_os = "linux"))]
@@ -370,6 +370,7 @@ pub fn run() {
             commands::mongo_cmd::mongo_list_databases,
             commands::mongo_cmd::mongo_list_collections,
             commands::mongo_cmd::mongo_find_documents,
+            commands::mongo_cmd::mongo_aggregate_documents,
             commands::mongo_cmd::mongo_insert_document,
             commands::mongo_cmd::mongo_update_document,
             commands::mongo_cmd::mongo_delete_document,
