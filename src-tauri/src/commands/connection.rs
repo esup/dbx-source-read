@@ -321,18 +321,16 @@ pub async fn test_connection(state: State<'_, Arc<AppState>>, config: Connection
                     .await
                     .map(|_| "Connection successful".to_string())
             }
-            DatabaseType::SqlServer => {
-                db::sqlserver::connect(
-                    &host,
-                    port,
-                    &config.username,
-                    &config.password,
-                    config.database.as_deref(),
-                    connect_timeout,
-                )
-                .await
-                .map(|_| "Connection successful".to_string())
-            }
+            DatabaseType::SqlServer => db::sqlserver::connect(
+                &host,
+                port,
+                &config.username,
+                &config.password,
+                config.database.as_deref(),
+                connect_timeout,
+            )
+            .await
+            .map(|_| "Connection successful".to_string()),
             DatabaseType::Elasticsearch => {
                 let client = db::elasticsearch_driver::EsClient::new(
                     &url,
