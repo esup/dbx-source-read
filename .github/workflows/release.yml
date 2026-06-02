@@ -201,8 +201,36 @@ jobs:
           Compress-Archive -Path (Join-Path $portableDir "*") -DestinationPath $zipName -Force
           gh release upload "${env:GITHUB_REF_NAME}" $zipName --repo "${env:GITHUB_REPOSITORY}" --clobber
 
+  cleanup-release-signatures:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove standalone updater signature assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          mapfile -t SIG_ASSETS < <(
+            gh release view "${GITHUB_REF_NAME}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --json assets \
+              --jq '.assets[].name | select(endswith(".sig"))'
+          )
+
+          if [ "${#SIG_ASSETS[@]}" -eq 0 ]; then
+            echo "No standalone .sig release assets found."
+            exit 0
+          fi
+
+          for ASSET in "${SIG_ASSETS[@]}"; do
+            echo "Deleting release asset: ${ASSET}"
+            gh release delete-asset "${GITHUB_REF_NAME}" "${ASSET}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --yes
+          done
+
   jdbc-plugin:
-    needs: [build, bump-jdbc-plugin-version]
+    needs: [cleanup-release-signatures, bump-jdbc-plugin-version]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -261,7 +289,7 @@ jobs:
             --clobber
 
   publish:
-    needs: [build, docker-manifest, jdbc-plugin]
+    needs: [cleanup-release-signatures, docker-manifest, jdbc-plugin]
     runs-on: ubuntu-latest
     steps:
       - name: Publish draft release
