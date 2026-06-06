@@ -713,7 +713,15 @@ pub fn map_column_type(source_type: &str, _source_db: &DatabaseType, target_db: 
                 "CHAR(1)".into()
             }
         }
-        "text" | "longtext" | "mediumtext" | "tinytext" | "clob" | "ntext" => "TEXT".into(),
+        "longtext" => match target_db {
+            DatabaseType::Mysql => "LONGTEXT".into(),
+            _ => "TEXT".into(),
+        },
+        "mediumtext" => match target_db {
+            DatabaseType::Mysql => "MEDIUMTEXT".into(),
+            _ => "TEXT".into(),
+        },
+        "text" | "tinytext" | "clob" | "ntext" => "TEXT".into(),
         "bool" | "boolean" => match target_db {
             DatabaseType::Mysql => "TINYINT(1)".into(),
             DatabaseType::SqlServer => "BIT".into(),
@@ -730,7 +738,19 @@ pub fn map_column_type(source_type: &str, _source_db: &DatabaseType, target_db: 
             DatabaseType::SqlServer => "DATETIME2".into(),
             _ => "TIMESTAMP".into(),
         },
-        "blob" | "longblob" | "mediumblob" | "tinyblob" | "binary" | "varbinary" | "image" => match target_db {
+        "longblob" => match target_db {
+            DatabaseType::Mysql => "LONGBLOB".into(),
+            DatabaseType::Postgres => "BYTEA".into(),
+            DatabaseType::SqlServer => "VARBINARY(MAX)".into(),
+            _ => "BLOB".into(),
+        },
+        "mediumblob" => match target_db {
+            DatabaseType::Mysql => "MEDIUMBLOB".into(),
+            DatabaseType::Postgres => "BYTEA".into(),
+            DatabaseType::SqlServer => "VARBINARY(MAX)".into(),
+            _ => "BLOB".into(),
+        },
+        "blob" | "tinyblob" | "binary" | "varbinary" | "image" => match target_db {
             DatabaseType::Postgres => "BYTEA".into(),
             DatabaseType::Mysql => "BLOB".into(),
             DatabaseType::SqlServer => "VARBINARY(MAX)".into(),
@@ -764,6 +784,12 @@ fn mysql_type_needs_key_prefix(mapped_type: &str) -> bool {
         base.as_str(),
         "text" | "tinytext" | "mediumtext" | "longtext" | "blob" | "tinyblob" | "mediumblob" | "longblob"
     )
+}
+
+fn parse_mysql_row_error(error: &str) -> Option<u64> {
+    let error = error.trim();
+    let at_row = error.rsplit("at row ").next()?;
+    at_row.trim().parse::<u64>().ok()
 }
 
 pub fn generate_create_table_ddl(
@@ -2245,11 +2271,19 @@ where
         );
         for (statement_index, batch_sql) in write_statements.iter().enumerate() {
             execute_on_pool(state, target_pool_key, batch_sql).await.map_err(|e| {
-                format!(
-                    "Insert failed at offset {offset}, chunk {} of {}: {e}",
-                    statement_index + 1,
-                    write_statements.len()
-                )
+                let absolute_row = parse_mysql_row_error(&e).map(|row| offset + row);
+                match absolute_row {
+                    Some(row) => format!(
+                        "Insert failed for table '{table}' at row {row} (chunk {} of {}): {e}",
+                        statement_index + 1,
+                        write_statements.len()
+                    ),
+                    None => format!(
+                        "Insert failed for table '{table}' at offset {offset}, chunk {} of {}: {e}",
+                        statement_index + 1,
+                        write_statements.len()
+                    ),
+                }
             })?;
         }
 
@@ -3204,5 +3238,46 @@ mod tests {
         assert_eq!(database_from_pool_key("conn:analytics"), Some("analytics"));
         assert_eq!(database_from_pool_key("conn:analytics:session:editor-1"), Some("analytics"));
         assert_eq!(database_from_pool_key("conn"), None);
+    }
+
+    #[test]
+    fn map_column_type_preserves_longtext_for_mysql_target() {
+        assert_eq!(map_column_type("longtext", &DatabaseType::Mysql, &DatabaseType::Mysql), "LONGTEXT");
+    }
+
+    #[test]
+    fn map_column_type_preserves_mediumtext_for_mysql_target() {
+        assert_eq!(map_column_type("mediumtext", &DatabaseType::Mysql, &DatabaseType::Mysql), "MEDIUMTEXT");
+    }
+
+    #[test]
+    fn map_column_type_preserves_longblob_for_mysql_target() {
+        assert_eq!(map_column_type("longblob", &DatabaseType::Mysql, &DatabaseType::Mysql), "LONGBLOB");
+    }
+
+    #[test]
+    fn map_column_type_preserves_mediumblob_for_mysql_target() {
+        assert_eq!(map_column_type("mediumblob", &DatabaseType::Mysql, &DatabaseType::Mysql), "MEDIUMBLOB");
+    }
+
+    #[test]
+    fn map_column_type_longtext_falls_back_to_text_for_non_mysql_target() {
+        assert_eq!(map_column_type("longtext", &DatabaseType::Mysql, &DatabaseType::Postgres), "TEXT");
+    }
+
+    #[test]
+    fn map_column_type_longblob_falls_back_for_non_mysql_target() {
+        assert_eq!(map_column_type("longblob", &DatabaseType::Mysql, &DatabaseType::Postgres), "BYTEA");
+    }
+
+    #[test]
+    fn parse_mysql_row_error_extracts_row_number() {
+        let err = "ERROR 22001 (1406): Data too long column 'content' at row 8";
+        assert_eq!(parse_mysql_row_error(err), Some(8));
+    }
+
+    #[test]
+    fn parse_mysql_row_error_returns_none_for_non_mysql_error() {
+        assert_eq!(parse_mysql_row_error("some other error"), None);
     }
 }
