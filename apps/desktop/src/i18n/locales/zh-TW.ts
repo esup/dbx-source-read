@@ -870,7 +870,6 @@ export default {
     proxy: "代理伺服器",
     proxyEnable: "經由代理伺服器發送 AI 請求",
     proxyUrl: "代理伺服器地址",
-    settingsHint: "設定會儲存在本機應用程式資料目錄中。請求由 Tauri 後端發出，避免在前端直接暴露給模型服務。",
     enableThinking: "Thinking",
     enableThinkingOn: "已啟用",
     enableThinkingOff: "已停用",

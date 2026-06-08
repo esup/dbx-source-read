@@ -921,7 +921,6 @@ export default {
     proxy: "代理",
     proxyEnable: "AI 请求通过代理发送",
     proxyUrl: "代理地址",
-    settingsHint: "配置会保存在本机应用数据目录中。请求由 Tauri 后端发出，避免在前端直接暴露给模型服务。",
     enableThinking: "Thinking",
     enableThinkingOn: "已启用",
     enableThinkingOff: "已禁用",

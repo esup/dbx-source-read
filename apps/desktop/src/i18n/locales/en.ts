@@ -940,8 +940,6 @@ export default {
     proxy: "Proxy",
     proxyEnable: "Send AI requests through proxy",
     proxyUrl: "Proxy URL",
-    settingsHint:
-      "The config is stored in the local app data directory. Requests are sent by the Tauri backend instead of directly from the frontend.",
     enableThinking: "Thinking",
     enableThinkingOn: "Enabled",
     enableThinkingOff: "Disabled",

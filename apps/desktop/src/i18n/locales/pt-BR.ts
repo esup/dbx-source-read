@@ -924,8 +924,6 @@ export default {
     proxy: "Proxy",
     proxyEnable: "Enviar requisições de AI através do proxy",
     proxyUrl: "URL do Proxy",
-    settingsHint:
-      "A configuração é armazenada no diretório local de dados do aplicativo. As requisições são enviadas pelo backend do Tauri em vez de diretamente pelo frontend.",
     enableThinking: "Raciocínio",
     enableThinkingOn: "Ativado",
     enableThinkingOff: "Desativado",

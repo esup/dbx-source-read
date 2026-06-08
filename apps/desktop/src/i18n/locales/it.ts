@@ -928,8 +928,6 @@ export default {
     proxy: "Proxy",
     proxyEnable: "Invia richieste AI tramite proxy",
     proxyUrl: "URL Proxy",
-    settingsHint:
-      "La configurazione viene salvata nella cartella dei dati locali dell'app. Le richieste vengono inviate dal backend Tauri invece che direttamente dal frontend.",
     enableThinking: "Pensiero (Thinking)",
     enableThinkingOn: "Abilitato",
     enableThinkingOff: "Disabilitato",

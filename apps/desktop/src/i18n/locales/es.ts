@@ -811,8 +811,6 @@ export default {
     proxy: "Proxy",
     proxyEnable: "Enviar solicitudes de IA mediante proxy",
     proxyUrl: "URL del proxy",
-    settingsHint:
-      "La configuración se almacena en el directorio de datos local de la aplicación. Las solicitudes son enviadas por el backend de Tauri en lugar de directamente desde el frontend.",
     actions: {
       generate: "Generar SQL",
       explain: "Explicar SQL",
