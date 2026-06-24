@@ -1294,6 +1294,11 @@ export default {
     createSchemaSuccess: "スキーマ「{name}」を作成しました",
     dropSchemaSuccess: "スキーマ「{name}」を削除しました",
     createSchemaNamePlaceholder: "スキーマ名",
+    editSchemaComment: "コメントを編集",
+    editSchemaCommentTitle: "コメントを編集: 「{name}」",
+    schemaCommentPlaceholder: "スキーマコメントを入力...",
+    schemaCommentSaving: "保存中...",
+    editSchemaCommentSuccess: "スキーマ「{name}」のコメントを更新しました",
   },
   visibleDatabases: {
     title: "表示するデータベース",

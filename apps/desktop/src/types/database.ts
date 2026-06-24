@@ -250,6 +250,11 @@ export interface DatabaseInfo {
   name: string;
 }
 
+export interface SchemaInfo {
+  name: string;
+  comment?: string | null;
+}
+
 export interface LinkedServerInfo {
   name: string;
   product?: string | null;

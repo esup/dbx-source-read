@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   ConnectionConfig,
   DatabaseInfo,
+  SchemaInfo,
   LinkedServerInfo,
   TableInfo,
   ObjectInfo,
@@ -545,6 +546,10 @@ export async function getObjectSource(connectionId: string, database: string, sc
 
 export async function listSchemas(connectionId: string, database: string): Promise<string[]> {
   return invoke("list_schemas", { connectionId, database });
+}
+
+export async function listSchemaInfos(connectionId: string, database: string): Promise<SchemaInfo[]> {
+  return invoke("list_schema_infos", { connectionId, database });
 }
 
 export async function getColumns(connectionId: string, database: string, schema: string, table: string): Promise<ColumnInfo[]> {

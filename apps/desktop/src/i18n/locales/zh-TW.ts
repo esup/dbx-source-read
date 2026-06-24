@@ -1222,6 +1222,11 @@ export default {
     createSchemaSuccess: "Schema「{name}」已建立",
     dropSchemaSuccess: "Schema「{name}」已刪除",
     createSchemaNamePlaceholder: "Schema 名稱",
+    editSchemaComment: "編輯註解",
+    editSchemaCommentTitle: "編輯註解：「{name}」",
+    schemaCommentPlaceholder: "輸入 Schema 註解...",
+    schemaCommentSaving: "正在儲存...",
+    editSchemaCommentSuccess: "Schema「{name}」註解已更新",
   },
   visibleDatabases: {
     title: "顯示資料庫",

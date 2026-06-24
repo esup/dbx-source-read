@@ -25,7 +25,7 @@ use crate::types::{
     ColumnInfo, CompletionAssistantCandidate, CompletionAssistantCandidateKind, CompletionAssistantMatchMode,
     CompletionAssistantObjectKind, CompletionAssistantRequest, CompletionAssistantResponse, DatabaseInfo,
     ForeignKeyInfo, FunctionInfo, IndexInfo, ObjectInfo, ObjectStatistics, OwnerInfo, QueryResult, RuleInfo,
-    SequenceInfo, TableInfo, TriggerInfo,
+    SchemaInfo, SequenceInfo, TableInfo, TriggerInfo,
 };
 
 fn pg_temporal_to_json_value(row: &Row, idx: usize) -> Option<serde_json::Value> {
@@ -1479,10 +1479,19 @@ pub async fn list_object_statistics(pool: &Pool, schema: &str) -> Result<Vec<Obj
 }
 
 pub async fn list_schemas(pool: &Pool) -> Result<Vec<String>, String> {
+    Ok(list_schema_infos(pool).await?.into_iter().map(|schema| schema.name).collect())
+}
+
+pub async fn list_schema_infos(pool: &Pool) -> Result<Vec<SchemaInfo>, String> {
     let client = pool.get().await.map_err(|e| e.to_string())?;
     let stmt = client
         .prepare_cached(
-            "SELECT n.nspname AS schema_name FROM pg_catalog.pg_namespace n \
+            "SELECT n.nspname AS schema_name, d.description AS schema_comment \
+             FROM pg_catalog.pg_namespace n \
+             LEFT JOIN pg_catalog.pg_description d \
+               ON d.objoid = n.oid \
+              AND d.objsubid = 0 \
+              AND d.classoid = 'pg_namespace'::regclass \
              WHERE n.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast') \
              AND n.nspname NOT LIKE 'pg_toast_temp_%' \
              AND n.nspname NOT LIKE 'pg_temp_%' \
@@ -1492,7 +1501,13 @@ pub async fn list_schemas(pool: &Pool) -> Result<Vec<String>, String> {
         .map_err(|e| e.to_string())?;
     let rows = client.query(&stmt, &[]).await.map_err(|e| e.to_string())?;
 
-    Ok(rows.iter().map(|row| row.get::<_, String>(0)).collect())
+    Ok(rows
+        .iter()
+        .map(|row| SchemaInfo {
+            name: row.get::<_, String>(0),
+            comment: row.try_get::<_, Option<String>>(1).ok().flatten(),
+        })
+        .collect())
 }
 
 const POSTGRES_COLUMNS_SQL: &str = "SELECT a.attname AS column_name, \

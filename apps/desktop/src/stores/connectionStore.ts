@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { uuid } from "@/lib/utils";
 import { ref, computed, watch } from "vue";
-import type { ColumnInfo, CompletionAssistantCandidate, CompletionAssistantObjectKind, CompletionAssistantRequest, ConnectionConfig, ForeignKeyInfo, ObjectInfo, SidebarLayout, TableInfo, TreeNode } from "@/types/database";
+import type { ColumnInfo, CompletionAssistantCandidate, CompletionAssistantObjectKind, CompletionAssistantRequest, ConnectionConfig, ForeignKeyInfo, ObjectInfo, SchemaInfo, SidebarLayout, TableInfo, TreeNode } from "@/types/database";
 import { applyPinnedTreeNodeState, updatePinnedTreeNodeInPlace } from "@/lib/pinnedItems";
 import {
   reconcileLayout,
@@ -568,6 +568,16 @@ export const useConnectionStore = defineStore("connection", () => {
   function supportedSidebarObjectTypes(config?: ConnectionConfig): DatabaseObjectTreeKind[] {
     const dbType = effectiveDatabaseTypeForConnection(config);
     return sidebarObjectKindsForDatabase(dbType);
+  }
+
+  function sortSidebarSchemaInfos(schemas: readonly SchemaInfo[]): SchemaInfo[] {
+    const byName = new Map<string, SchemaInfo>();
+    for (const schema of schemas) {
+      const name = schema.name.trim();
+      if (!name) continue;
+      byName.set(name, { name, comment: schema.comment ?? null });
+    }
+    return sortSidebarNames([...byName.keys()]).map((name) => byName.get(name)!);
   }
 
   function objectGroupCacheKey(node: TreeNode): string {
@@ -1501,7 +1511,7 @@ export const useConnectionStore = defineStore("connection", () => {
     try {
       await ensureConnected(connectionId);
       if (useCachedChildren(node, options)) return;
-      const cacheKey = schemaCacheKey(connectionId, database, "schemas");
+      const cacheKey = schemaCacheKey(connectionId, database, "schemas-v2");
       if (!options?.force) {
         const cached = await loadPersistedTreeChildren(node, cacheKey);
         if (cached.hit) {
@@ -1510,17 +1520,21 @@ export const useConnectionStore = defineStore("connection", () => {
         }
       }
 
-      const schemas = sortSidebarNames(await api.listSchemas(connectionId, database));
-      const children = schemas.map((s) => ({
-        id: `${connectionId}:${database}:${s}`,
-        label: s,
-        type: "schema" as const,
-        connectionId,
-        database,
-        schema: s,
-        isExpanded: false,
-        children: [],
-      }));
+      const schemas = sortSidebarSchemaInfos(await api.listSchemaInfos(connectionId, database));
+      const children = schemas.map((schema) => {
+        const s = schema.name;
+        return {
+          id: `${connectionId}:${database}:${s}`,
+          label: s,
+          type: "schema" as const,
+          connectionId,
+          database,
+          schema: s,
+          comment: schema.comment,
+          isExpanded: false,
+          children: [],
+        };
+      });
       setChildren(node, children);
       await savePersistedTreeChildren(cacheKey, children);
       node.isExpanded = true;

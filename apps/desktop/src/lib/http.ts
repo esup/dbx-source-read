@@ -1,6 +1,7 @@
 import type {
   ConnectionConfig,
   DatabaseInfo,
+  SchemaInfo,
   LinkedServerInfo,
   TableInfo,
   ObjectInfo,
@@ -477,6 +478,11 @@ export async function deleteSchemaCachePrefix(prefix: string): Promise<void> {
 
 export async function listSchemas(connectionId: string, database: string): Promise<string[]> {
   return get(`/api/schema/schemas?${qs({ connection_id: connectionId, database })}`);
+}
+
+export async function listSchemaInfos(connectionId: string, database: string): Promise<SchemaInfo[]> {
+  const schemas = await listSchemas(connectionId, database);
+  return schemas.map((name) => ({ name, comment: null }));
 }
 
 export async function listTables(connectionId: string, database: string, schema: string, filter?: string, limit?: number, offset?: number, objectTypes?: SidebarObjectKind[]): Promise<TableInfo[]> {

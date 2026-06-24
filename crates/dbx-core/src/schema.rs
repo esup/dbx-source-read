@@ -590,6 +590,34 @@ pub async fn list_schemas_core(state: &AppState, connection_id: &str, database: 
     .await
 }
 
+pub async fn list_schema_infos_core(
+    state: &AppState,
+    connection_id: &str,
+    database: &str,
+) -> Result<Vec<db::SchemaInfo>, String> {
+    retry_metadata_connection(state, connection_id, Some(database), || {
+        list_schema_infos_once(state, connection_id, database)
+    })
+    .await
+}
+
+async fn list_schema_infos_once(
+    state: &AppState,
+    connection_id: &str,
+    database: &str,
+) -> Result<Vec<db::SchemaInfo>, String> {
+    let pool_key = state.get_or_create_pool(connection_id, Some(database)).await?;
+    {
+        let connections = state.connections.read().await;
+        if let Some(PoolKind::Postgres(pool)) = connections.get(&pool_key) {
+            return db::postgres::list_schema_infos(pool).await;
+        }
+    }
+
+    let schemas = list_schemas_once(state, connection_id, database).await?;
+    Ok(schemas.into_iter().map(|name| db::SchemaInfo { name, comment: None }).collect())
+}
+
 async fn list_schemas_once(state: &AppState, connection_id: &str, database: &str) -> Result<Vec<String>, String> {
     let pool_key = state.get_or_create_pool(connection_id, Some(database)).await?;
     let db_config = connection_config(state, connection_id).await;

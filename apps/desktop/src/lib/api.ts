@@ -113,6 +113,7 @@ export const saveSchemaCache = forward("saveSchemaCache");
 export const loadSchemaCache = forward("loadSchemaCache");
 export const deleteSchemaCachePrefix = forward("deleteSchemaCachePrefix");
 export const listSchemas = forward("listSchemas");
+export const listSchemaInfos = forward("listSchemaInfos");
 export const listTables = forward("listTables");
 export const getTableComment = forward("getTableComment");
 export const listObjects = forward("listObjects");

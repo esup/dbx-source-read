@@ -83,11 +83,14 @@ import {
   buildDropDatabaseSql,
   buildDropObjectSql,
   buildDropSchemaSql,
+  buildGetSchemaCommentSql,
   buildDropTableSql,
   buildDropTableChildObjectSql,
   buildDuplicateTableStructureSql,
   buildEmptyTableSql,
+  buildSetSchemaCommentSql,
   buildTruncateTableSql,
+  supportsSchemaComment,
   type DropTableChildObjectSqlOptions,
   type DropObjectSqlOptions,
   type TableChildObjectType,
@@ -407,17 +410,18 @@ const connectionInfoTooltip = computed(() => {
   return { rows };
 });
 
-const tableInfoTooltip = computed(() => {
+const objectCommentTooltip = computed(() => {
   const node = props.node;
-  if (node.type !== "table" && node.type !== "view") return null;
+  const comment = node.type === "column" && node.meta && "comment" in node.meta ? (node.meta as ColumnInfo).comment : node.comment;
+  if (!comment || (node.type !== "schema" && node.type !== "table" && node.type !== "view" && node.type !== "column")) return null;
   const rows: DetailTooltipRow[] = [
-    { label: t("structureEditor.tableName"), value: visibleLabel(node) },
-    { label: t("structureEditor.comment"), value: cleanTooltipValue(node.comment), multiline: true },
+    { label: t("connection.name"), value: visibleLabel(node) },
+    { label: t("structureEditor.comment"), value: cleanTooltipValue(comment), multiline: true },
   ].filter((row) => row.value);
   return { rows };
 });
 
-const detailTooltip = computed(() => connectionInfoTooltip.value ?? tableInfoTooltip.value);
+const detailTooltip = computed(() => connectionInfoTooltip.value ?? objectCommentTooltip.value);
 
 function isTooltipDisabled(): boolean {
   if (detailTooltip.value?.rows.length) return isRenamingGroup.value;
@@ -1421,6 +1425,9 @@ const showFlushRedisDbConfirm = ref(false);
 const showCreateSchemaDialog = ref(false);
 const createSchemaName = ref("");
 const showDropSchemaConfirm = ref(false);
+const showEditSchemaCommentDialog = ref(false);
+const schemaCommentText = ref("");
+const schemaCommentLoading = ref(false);
 
 // --- Procedure / Function Management ---
 const showDropObjectConfirm = ref(false);
@@ -1935,6 +1942,11 @@ const canDropSchema = computed(() => {
   return props.node.type === "schema" && !isSqlServerLinkedNode(props.node) && usesTreeSchemaMode(effectiveDatabaseTypeForConnection(config)) && !connectionUsesDatabaseObjectTreeMode(config);
 });
 
+const canEditSchemaComment = computed(() => {
+  const config = props.node.connectionId ? connectionStore.getConfig(props.node.connectionId) : undefined;
+  return props.node.type === "schema" && !!props.node.database && !config?.read_only && supportsSchemaComment(effectiveDatabaseTypeForConnection(config));
+});
+
 function tableAdminSqlOptions(): TableAdminSqlOptions {
   return {
     databaseType: currentDatabaseType(),
@@ -2036,6 +2048,75 @@ async function refreshDropSchemaPreviewSql() {
     databaseType: currentDatabaseType(),
     name: props.node.label,
   }).catch(() => "");
+}
+
+const schemaCommentPreviewSql = computed(() => {
+  if (!canEditSchemaComment.value) return "";
+  try {
+    return buildSetSchemaCommentSql({
+      databaseType: currentDatabaseType(),
+      name: props.node.schema || props.node.label,
+      comment: schemaCommentText.value,
+    });
+  } catch {
+    return "";
+  }
+});
+
+function schemaCommentFromResult(result: { columns?: string[]; rows?: unknown[] }): string {
+  const firstRow = result.rows?.[0];
+  if (Array.isArray(firstRow)) {
+    const index = Math.max(0, result.columns?.findIndex((column) => column === "comment") ?? 0);
+    return firstRow[index] == null ? "" : String(firstRow[index]);
+  }
+  if (firstRow && typeof firstRow === "object" && "comment" in firstRow) {
+    const value = (firstRow as { comment?: unknown }).comment;
+    return value == null ? "" : String(value);
+  }
+  return "";
+}
+
+async function openEditSchemaCommentDialog() {
+  const node = props.node;
+  if (!canEditSchemaComment.value || !node.connectionId || !node.database) return;
+  schemaCommentText.value = "";
+  schemaCommentLoading.value = true;
+  showEditSchemaCommentDialog.value = true;
+  try {
+    await connectionStore.ensureConnected(node.connectionId);
+    const sql = buildGetSchemaCommentSql({
+      databaseType: currentDatabaseType(),
+      name: node.schema || node.label,
+    });
+    const result = await api.executeQuery(node.connectionId, node.database, sql, node.schema, undefined, { maxRows: 1 });
+    schemaCommentText.value = schemaCommentFromResult(result);
+  } catch {
+    schemaCommentText.value = "";
+  } finally {
+    schemaCommentLoading.value = false;
+  }
+}
+
+async function confirmEditSchemaComment() {
+  const node = props.node;
+  if (!canEditSchemaComment.value || !node.connectionId || !node.database || schemaCommentLoading.value) return;
+  schemaCommentLoading.value = true;
+  try {
+    await connectionStore.ensureConnected(node.connectionId);
+    const sql = buildSetSchemaCommentSql({
+      databaseType: currentDatabaseType(),
+      name: node.schema || node.label,
+      comment: schemaCommentText.value,
+    });
+    await api.executeQuery(node.connectionId, node.database, sql, node.schema);
+    toast(t("contextMenu.editSchemaCommentSuccess", { name: node.label }), 3000);
+    showEditSchemaCommentDialog.value = false;
+    await connectionStore.loadSchemas(node.connectionId, node.database, { force: true });
+  } catch (e: any) {
+    toast(t("contextMenu.tableOperationFailed", { message: translateBackendError(t, e?.message || String(e)) }), 5000);
+  } finally {
+    schemaCommentLoading.value = false;
+  }
 }
 
 async function openCreateDatabase() {
@@ -2953,7 +3034,11 @@ const hasTypeMenu = computed(() => {
 });
 const columnComment = computed(() => (!settingsStore.editorSettings.sidebarHideTableComments && props.node.type === "column" && props.node.meta && "comment" in props.node.meta ? (props.node.meta as any).comment : null));
 const tableComment = computed(() =>
-  !settingsStore.editorSettings.sidebarHideTableComments && (props.node.type === "table" || props.node.type === "view" || props.node.type === "mongo-collection" || props.node.type === "vector-collection" || props.node.type === "elasticsearch-index") && props.node.comment ? props.node.comment : null,
+  !settingsStore.editorSettings.sidebarHideTableComments &&
+  (props.node.type === "schema" || props.node.type === "table" || props.node.type === "view" || props.node.type === "mongo-collection" || props.node.type === "vector-collection" || props.node.type === "elasticsearch-index") &&
+  props.node.comment
+    ? props.node.comment
+    : null,
 );
 const paddingLeft = computed(() => treeItemPaddingLeft(props.depth));
 const isConnected = computed(() => props.node.type === "connection" && !!props.node.connectionId && connectionStore.connectedIds.has(props.node.connectionId));
@@ -3493,6 +3578,9 @@ function treeItemMenuItems(): ContextMenuItem[] {
     }
     if (canCreateSchema.value) {
       items.push({ label: t("contextMenu.createSchema"), action: openCreateSchemaDialog, icon: Plus });
+    }
+    if (canEditSchemaComment.value) {
+      items.push({ label: t("contextMenu.editSchemaComment"), action: openEditSchemaCommentDialog, icon: SquarePen });
     }
     if (canOpenSqlFileExecution.value) {
       items.push({ label: t("sqlFile.title"), action: openSqlFileExecution, icon: FileCode });
@@ -4220,6 +4308,31 @@ function treeItemMenuItems(): ContextMenuItem[] {
       <DialogFooter>
         <Button variant="outline" @click="showCreateSchemaDialog = false">{{ t("dangerDialog.cancel") }}</Button>
         <Button :disabled="!createSchemaName.trim()" @click="confirmCreateSchema">{{ t("dangerDialog.confirm") }}</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog v-model:open="showEditSchemaCommentDialog">
+    <DialogContent class="sm:max-w-[520px]">
+      <DialogHeader>
+        <DialogTitle>{{ t("contextMenu.editSchemaCommentTitle", { name: node.label }) }}</DialogTitle>
+      </DialogHeader>
+      <div class="grid gap-3">
+        <textarea
+          v-model="schemaCommentText"
+          class="min-h-28 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring/40"
+          :placeholder="t('contextMenu.schemaCommentPlaceholder')"
+          :disabled="schemaCommentLoading"
+          @keydown.meta.enter.prevent="confirmEditSchemaComment"
+          @keydown.ctrl.enter.prevent="confirmEditSchemaComment"
+        ></textarea>
+        <pre v-if="schemaCommentPreviewSql" class="max-h-32 overflow-auto rounded bg-muted p-3 text-xs whitespace-pre-wrap" v-html="highlight(schemaCommentPreviewSql)"></pre>
+      </div>
+      <DialogFooter>
+        <Button variant="outline" :disabled="schemaCommentLoading" @click="showEditSchemaCommentDialog = false">{{ t("dangerDialog.cancel") }}</Button>
+        <Button :disabled="schemaCommentLoading" @click="confirmEditSchemaComment">
+          {{ schemaCommentLoading ? t("contextMenu.schemaCommentSaving") : t("dangerDialog.confirm") }}
+        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

@@ -1118,6 +1118,11 @@ export default {
     createSchemaSuccess: 'Esquema "{name}" creado',
     dropSchemaSuccess: 'Esquema "{name}" eliminado',
     createSchemaNamePlaceholder: "Nombre del esquema",
+    editSchemaComment: "Editar comentario",
+    editSchemaCommentTitle: 'Editar comentario: "{name}"',
+    schemaCommentPlaceholder: "Introduce un comentario del esquema...",
+    schemaCommentSaving: "Guardando...",
+    editSchemaCommentSuccess: 'Comentario del esquema "{name}" actualizado',
   },
   visibleDatabases: {
     title: "Bases de datos visibles",

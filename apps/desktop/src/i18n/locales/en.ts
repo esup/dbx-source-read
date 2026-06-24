@@ -1306,6 +1306,11 @@ export default {
     createSchemaSuccess: 'Schema "{name}" created',
     dropSchemaSuccess: 'Schema "{name}" dropped',
     createSchemaNamePlaceholder: "Schema name",
+    editSchemaComment: "Edit Comment",
+    editSchemaCommentTitle: 'Edit Comment: "{name}"',
+    schemaCommentPlaceholder: "Enter schema comment...",
+    schemaCommentSaving: "Saving...",
+    editSchemaCommentSuccess: 'Schema "{name}" comment updated',
   },
   visibleDatabases: {
     title: "Visible Databases",

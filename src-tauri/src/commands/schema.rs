@@ -73,6 +73,15 @@ pub async fn list_schemas(
 }
 
 #[tauri::command]
+pub async fn list_schema_infos(
+    state: State<'_, Arc<AppState>>,
+    connection_id: String,
+    database: String,
+) -> Result<Vec<db::SchemaInfo>, String> {
+    dbx_core::schema::list_schema_infos_core(&state, &connection_id, &database).await
+}
+
+#[tauri::command]
 pub async fn list_tables(
     state: State<'_, Arc<AppState>>,
     connection_id: String,

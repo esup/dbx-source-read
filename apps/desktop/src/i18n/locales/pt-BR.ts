@@ -1242,6 +1242,11 @@ export default {
     createSchemaSuccess: 'Schema "{name}" criado',
     dropSchemaSuccess: 'Schema "{name}" removido',
     createSchemaNamePlaceholder: "Nome do schema",
+    editSchemaComment: "Editar comentário",
+    editSchemaCommentTitle: 'Editar comentário: "{name}"',
+    schemaCommentPlaceholder: "Digite o comentário do schema...",
+    schemaCommentSaving: "Salvando...",
+    editSchemaCommentSuccess: 'Comentário do schema "{name}" atualizado',
   },
   visibleDatabases: {
     title: "Bancos de dados visíveis",
