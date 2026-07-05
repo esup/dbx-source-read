@@ -74,6 +74,7 @@ import type {
   SqlFileProgress,
   TransferRequest,
   TransferProgress,
+  TableImportPreviewRequest,
   TableImportPreview,
   TableImportRequest,
   TableImportSummary,
@@ -1313,12 +1314,27 @@ export async function sortTablesByFkDependency(options: SortTablesByFkOptions): 
 // Table File Import
 // ---------------------------------------------------------------------------
 
-export async function previewTableImportFile(fileOrPath: string | File): Promise<TableImportPreview> {
+export async function previewTableImportFile(fileOrPath: string | File | TableImportPreviewRequest, options: Partial<TableImportPreviewRequest> = {}): Promise<TableImportPreview> {
+  if (typeof fileOrPath === "object" && !(fileOrPath instanceof File)) {
+    throw new Error("previewTableImportFile in web mode requires a File object for upload previews");
+  }
   if (typeof fileOrPath === "string") {
-    throw new Error("previewTableImportFile in web mode requires a File object, not a file path");
+    if (!options.sourceRef) {
+      throw new Error("previewTableImportFile in web mode requires a File object for new uploads");
+    }
+    const res = await fetch(apiUrl("/api/import/preview"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ request: { ...options, filePath: fileOrPath } }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
   }
   const formData = new FormData();
   formData.append("file", fileOrPath);
+  if (options.sourceFormat) formData.append("sourceFormat", options.sourceFormat);
+  if (options.parseOptions) formData.append("parseOptions", JSON.stringify(options.parseOptions));
+  if (options.previewLimit != null) formData.append("previewLimit", String(options.previewLimit));
   const res = await fetch(apiUrl("/api/import/preview"), { method: "POST", body: formData });
   if (!res.ok) throw new Error(await res.text());
   return res.json();

@@ -1898,20 +1898,42 @@ export async function sortTablesByFkDependency(options: SortTablesByFkOptions): 
 // --- Table File Import ---
 export type TableImportMode = "append" | "truncate";
 export type TableImportStatus = "running" | "done" | "error" | "cancelled";
+export type TableImportSourceFormat = "csv" | "tsv" | "delimited" | "json" | "excel";
+export type TableImportJsonShape = "auto" | "objects" | "arrays";
 
 export interface TableImportColumnMapping {
   sourceColumn: string;
   targetColumn: string;
 }
 
+export interface TableImportParseOptions {
+  delimiter?: string | null;
+  hasHeader?: boolean | null;
+  trimValues?: boolean | null;
+  emptyStringAsNull?: boolean | null;
+  sheetName?: string | null;
+  sheetIndex?: number | null;
+  jsonShape?: TableImportJsonShape | null;
+}
+
+export interface TableImportPreviewRequest {
+  filePath: string;
+  sourceRef?: string | null;
+  sourceFormat?: TableImportSourceFormat | null;
+  parseOptions?: TableImportParseOptions | null;
+  previewLimit?: number | null;
+}
+
 export interface TableImportPreview {
   fileName: string;
   filePath: string;
+  sourceRef?: string | null;
   fileType: string;
   sizeBytes: number;
   columns: string[];
   rows: unknown[][];
   totalRows: number;
+  sheets?: string[];
 }
 
 export interface TableImportRequest {
@@ -1921,6 +1943,9 @@ export interface TableImportRequest {
   schema: string;
   table: string;
   filePath: string;
+  sourceRef?: string | null;
+  sourceFormat?: TableImportSourceFormat | null;
+  parseOptions?: TableImportParseOptions | null;
   mappings: TableImportColumnMapping[];
   mode: TableImportMode;
   batchSize: number;
@@ -1940,8 +1965,12 @@ export interface TableImportProgress {
   error?: string | null;
 }
 
-export async function previewTableImportFile(filePath: string): Promise<TableImportPreview> {
-  return invoke("preview_table_import_file", { filePath });
+export async function previewTableImportFile(filePathOrRequest: string | File | TableImportPreviewRequest, options: Partial<TableImportPreviewRequest> = {}): Promise<TableImportPreview> {
+  if (typeof filePathOrRequest !== "string" && !("filePath" in filePathOrRequest)) {
+    throw new Error("previewTableImportFile in desktop mode requires a file path, not a File object");
+  }
+  const request: TableImportPreviewRequest = typeof filePathOrRequest === "string" ? { ...options, filePath: filePathOrRequest } : filePathOrRequest;
+  return invoke("preview_table_import_file", { request });
 }
 
 export async function importTableFile(request: TableImportRequest, onProgress: (progress: TableImportProgress) => void): Promise<TableImportSummary> {
