@@ -122,6 +122,7 @@ import { canGoNextDataGridPage } from "@/lib/dataGrid/dataGridPagination";
 import { dataGridScrollPosition, isDataGridNearScrollBottom, shouldCheckInfiniteScrollAfterScroll, type DataGridScrollPosition } from "@/lib/dataGrid/dataGridInfiniteScroll";
 import { CANVAS_DATA_GRID_ROW_HEIGHT, drawCanvasDataGrid } from "@/lib/dataGrid/canvasDataGridRenderer";
 import { dataGridSaveActionMode, dataGridSaveToolbarState } from "@/lib/dataGrid/dataGridSaveUi";
+import type { QueryEditabilityReason } from "@/lib/sql/sqlAnalysis";
 import { EDITOR_FONT_FAMILY_CSS_VAR } from "@/lib/editor/editorThemes";
 import { safeLocalStorageGet, safeLocalStorageSet } from "@/lib/backend/safeStorage";
 import { appendColumnValueFilterCondition, buildColumnValueFilterCondition, buildColumnValuesFilterCondition, combineWhereInputs, filterModeNeedsValue, parseFilterValue } from "@/lib/dataGrid/dataGridColumnFilter";
@@ -230,6 +231,9 @@ const props = defineProps<{
   allExportResults?: Array<{ sheetName: string; result: QueryResult }>;
   exportFileBaseName?: string;
   customSaveHandler?: import("@/composables/useDataGridEditor").CustomSaveHandler;
+  queryEditabilityReason?: QueryEditabilityReason;
+  allowInsertRows?: boolean;
+  allowDeleteRows?: boolean;
 }>();
 
 const dataGridTraceId = uuid().slice(0, 8);
@@ -3503,6 +3507,8 @@ watch(
 );
 const showQueryEditReadyBadge = computed(() => isResultsContext.value && hasData.value && !!props.editable && (!!props.tableMeta || !!props.customSaveHandler));
 const queryEditReadyTargetLabel = computed(() => props.tableMeta?.tableName ?? props.customSaveHandler?.targetLabel ?? "");
+const showQueryEditReadOnlyBadge = computed(() => isResultsContext.value && hasData.value && !showQueryEditReadyBadge.value && !!props.queryEditabilityReason);
+const queryEditReadOnlyReason = computed(() => (props.queryEditabilityReason ? t(`grid.queryEditUnsupported.${props.queryEditabilityReason}`) : ""));
 const showKeylessEditWarning = computed(() => !!props.editable && !!props.tableMeta && canUseKeylessRowPredicate(props.databaseType, props.tableMeta.primaryKeys ?? []));
 const canShowWhereSearch = computed(() => !!props.onExecuteSql && !isResultsContext.value);
 const canUseWhereSearch = computed(() => !!props.tableMeta && !!props.onExecuteSql && !isResultsContext.value);
@@ -3513,12 +3519,13 @@ const canEditExistingRows = computed(() => !!props.customSaveHandler || canEditE
 const customReadonlyColumns = computed(() => new Set((props.customSaveHandler?.readonlyColumns ?? []).map((column) => column.toLowerCase())));
 const hasDataGridSaveTarget = computed(() => !!props.tableMeta || !!props.customSaveHandler);
 const hasDataGridInsertTarget = computed(() => {
+  if (props.allowInsertRows === false) return false;
   const handler = props.customSaveHandler;
   if (handler) return handler.supportsInsert === true || handler.canInsert === true;
   return !!props.tableMeta && canInsertTableRows(props.databaseType);
 });
 const canInsertRows = computed(() => !!props.editable && hasDataGridInsertTarget.value);
-const canDeleteRows = computed(() => !props.customSaveHandler || props.customSaveHandler.canDelete !== false);
+const canDeleteRows = computed(() => props.allowDeleteRows !== false && (!props.customSaveHandler || props.customSaveHandler.canDelete !== false));
 watch(
   () => [props.databaseType, props.connectionId, props.database, props.tableMeta?.schema, props.tableMeta?.tableName],
   async () => {
@@ -3937,6 +3944,7 @@ const showDataGridTopbar = computed(
     canShowWhereSearch.value ||
     hasSearchBarSlot.value ||
     showQueryEditReadyBadge.value ||
+    showQueryEditReadOnlyBadge.value ||
     props.context !== "results" ||
     (!!props.editable && hasDataGridSaveTarget.value) ||
     transactionActive.value ||
@@ -8821,6 +8829,16 @@ const gridContextMenuItems = computed<ContextMenuItem[]>(() => {
               </TooltipTrigger>
               <TooltipContent side="bottom" class="max-w-sm">
                 {{ t("grid.queryEditReadyHint", { table: queryEditReadyTargetLabel }) }}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip v-else-if="showQueryEditReadOnlyBadge">
+              <TooltipTrigger as-child>
+                <div class="flex h-5 items-center gap-1 rounded border border-muted-foreground/30 bg-muted/60 px-1.5 text-xs font-medium text-muted-foreground">
+                  {{ t("grid.queryEditReadOnly") }}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" class="max-w-sm">
+                {{ queryEditReadOnlyReason }}
               </TooltipContent>
             </Tooltip>
             <Tooltip v-if="showKeylessEditWarning">

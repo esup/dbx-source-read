@@ -974,7 +974,7 @@ export default withEnglishFallback({
     keylessEditWarning: "无主键定位",
     keylessEditWarningHint: "这张表没有主键。保存更新或删除时会使用整行原始值作为 WHERE 条件；如果存在完全重复的行，可能会影响多行。",
     queryEditReady: "可编辑",
-    queryEditReadyHint: "这是来自“{table}”的单表结果，可直接修改、删除或新增行，最后点击待保存按钮保存。",
+    queryEditReadyHint: "此结果中的可写单元格会回写到“{table}”。请通过待保存按钮查看并保存更改。",
     queryEditReadOnly: "只读结果",
     queryEditUnsupported: {
       "not-select": "只有 SELECT 查询结果可以直接编辑。",
@@ -982,7 +982,7 @@ export default withEnglishFallback({
       "set-operation": "包含 UNION、INTERSECT 或 EXCEPT 的结果无法安全定位原表行。",
       aggregation: "包含 DISTINCT、GROUP BY、HAVING 或聚合结果，无法直接编辑原始数据。",
       "external-source": "外部文件或表函数查询结果无法直接回写，请先导入到数据库表后再编辑。",
-      "complex-source": "包含 JOIN、多个表或子查询的结果无法安全定位单个原表行。",
+      "complex-source": "无法为此结果唯一确定一个安全的回写目标表。",
       "computed-columns": "结果列包含表达式或函数，无法安全回写。请查询原始列名。",
       "no-table": "未识别到可编辑的数据表。",
       "no-primary-key": "目标表没有主键，无法安全定位要更新或删除的行。",

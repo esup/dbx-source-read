@@ -914,7 +914,7 @@ export default withEnglishFallback({
     keylessEditWarning: "Nessuna chiave primaria",
     keylessEditWarningHint: "Questa tabella non ha chiavi primarie. Gli aggiornamenti e le eliminazioni utilizzano tutti i valori originali delle righe nella clausola WHERE; le righe duplicate esatte potrebbero essere influenzate contemporaneamente.",
     queryEditReady: "Modificabile",
-    queryEditReadyHint: "Questo risultato a tabella singola proviene da “{table}”. Puoi modificare, eliminare o aggiungere righe, quindi utilizzare l'azione delle modifiche in sospeso per salvare.",
+    queryEditReadyHint: "Le celle modificabili in questo risultato vengono salvate in “{table}”. Usa l'azione delle modifiche in sospeso per rivedere e salvare.",
     queryEditReadOnly: "Risultato in sola lettura",
     queryEditUnsupported: {
       "not-select": "Only SELECT query results can be edited directly.",
@@ -922,7 +922,7 @@ export default withEnglishFallback({
       "set-operation": "UNION, INTERSECT, or EXCEPT results cannot be mapped safely back to source rows.",
       aggregation: "I risultati di DISTINCT, GROUP BY, HAVING e aggregazioni non possono essere modificati direttamente.",
       "external-source": "External files and table-function results cannot be written back directly. Import them into a database table before editing.",
-      "complex-source": "JOINs, multiple tables, and subqueries cannot be mapped safely to one source row.",
+      "complex-source": "DBX could not identify exactly one safe writeback target table for this result.",
       "computed-columns": "Computed expressions or function results cannot be written back. Select raw column names instead.",
       "no-table": "No editable source table was detected.",
       "no-primary-key": "The target table has no primary key, so rows cannot be updated or deleted safely.",

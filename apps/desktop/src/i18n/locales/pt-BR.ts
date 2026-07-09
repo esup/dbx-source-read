@@ -915,7 +915,7 @@ export default withEnglishFallback({
     keylessEditWarning: "Sem chave primária",
     keylessEditWarningHint: "Esta tabela não possui chave primária. Atualizações e exclusões usam todos os valores originais da linha na cláusula WHERE; linhas exatamente duplicadas podem ser afetadas juntas.",
     queryEditReady: "Editável",
-    queryEditReadyHint: "Este resultado de tabela única vem de “{table}”. Você pode editar, excluir ou adicionar linhas e, em seguida, usar a ação de alterações pendentes para salvar.",
+    queryEditReadyHint: "As células editáveis deste resultado são salvas em “{table}”. Use a ação de alterações pendentes para revisar e salvar.",
     queryEditReadOnly: "Resultado somente leitura",
     queryEditUnsupported: {
       "not-select": "Apenas resultados de consultas SELECT podem ser editados diretamente.",
@@ -923,7 +923,7 @@ export default withEnglishFallback({
       "set-operation": "Resultados de UNION, INTERSECT ou EXCEPT não podem ser mapeados com segurança de volta às linhas de origem.",
       aggregation: "Resultados de DISTINCT, GROUP BY, HAVING e agregações não podem ser editados diretamente.",
       "external-source": "Arquivos externos e resultados de funções de tabela não podem ser gravados de volta diretamente. Importe-os para uma tabela do banco de dados antes de editar.",
-      "complex-source": "JOINs, múltiplas tabelas e subconsultas não podem ser mapeados com segurança para uma única linha de origem.",
+      "complex-source": "O DBX não conseguiu identificar exatamente uma tabela de destino segura para gravar este resultado.",
       "computed-columns": "Expressões computadas ou resultados de funções não podem ser gravados de volta. Selecione os nomes brutos das colunas em vez disso.",
       "no-table": "Nenhuma tabela de origem editável foi detectada.",
       "no-primary-key": "A tabela de destino não possui chave primária, portanto as linhas não podem ser atualizadas ou excluídas com segurança.",

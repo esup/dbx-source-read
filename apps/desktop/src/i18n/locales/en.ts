@@ -972,7 +972,7 @@ export default {
     keylessEditWarning: "No primary key",
     keylessEditWarningHint: "This table has no primary key. Updates and deletes use all original row values in the WHERE clause; exact duplicate rows may be affected together.",
     queryEditReady: "Editable",
-    queryEditReadyHint: "This single-table result comes from “{table}”. You can edit, delete, or add rows, then use the pending-changes action to save.",
+    queryEditReadyHint: "Writable cells in this result save back to “{table}”. Use the pending-changes action to review and save.",
     queryEditReadOnly: "Read-only result",
     queryEditUnsupported: {
       "not-select": "Only SELECT query results can be edited directly.",
@@ -980,7 +980,7 @@ export default {
       "set-operation": "UNION, INTERSECT, or EXCEPT results cannot be mapped safely back to source rows.",
       aggregation: "DISTINCT, GROUP BY, HAVING, and aggregate results cannot be edited directly.",
       "external-source": "External files and table-function results cannot be written back directly. Import them into a database table before editing.",
-      "complex-source": "JOINs, multiple tables, and subqueries cannot be mapped safely to one source row.",
+      "complex-source": "DBX could not identify exactly one safe writeback target table for this result.",
       "computed-columns": "Computed expressions or function results cannot be written back. Select raw column names instead.",
       "no-table": "No editable source table was detected.",
       "no-primary-key": "The target table has no primary key, so rows cannot be updated or deleted safely.",

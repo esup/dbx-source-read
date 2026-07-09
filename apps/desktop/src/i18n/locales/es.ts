@@ -916,7 +916,7 @@ export default withEnglishFallback({
     keylessEditWarning: "Sin clave primaria",
     keylessEditWarningHint: "Esta tabla no tiene clave primaria. Las actualizaciones y eliminaciones usan todos los valores originales de la fila en WHERE; filas duplicadas exactas pueden verse afectadas juntas.",
     queryEditReady: "Editable",
-    queryEditReadyHint: 'Este resultado de una sola tabla proviene de "{table}". Puedes editar, eliminar o agregar filas, luego usa la acción de cambios pendientes para guardar.',
+    queryEditReadyHint: 'Las celdas editables de este resultado se guardan en "{table}". Usa la acción de cambios pendientes para revisar y guardar.',
     queryEditReadOnly: "Resultado de solo lectura",
     queryEditUnsupported: {
       "not-select": "Solo los resultados de consultas SELECT pueden editarse directamente.",
@@ -924,7 +924,7 @@ export default withEnglishFallback({
       "set-operation": "Los resultados de UNION, INTERSECT o EXCEPT no pueden asignarse de forma segura a las filas de origen.",
       aggregation: "Los resultados con DISTINCT, GROUP BY, HAVING y agregaciones no pueden editarse directamente.",
       "external-source": "Los archivos externos y los resultados de funciones de tabla no pueden escribirse directamente. Impórtalos a una tabla de base de datos antes de editarlos.",
-      "complex-source": "JOINs, múltiples tablas y subconsultas no pueden asignarse de forma segura a una fila de origen.",
+      "complex-source": "DBX no pudo identificar exactamente una tabla de destino segura para escribir este resultado.",
       "computed-columns": "Las expresiones calculadas o los resultados de funciones no pueden escribirse de vuelta. Selecciona nombres de columna originales.",
       "no-table": "No se detectó ninguna tabla de origen editable.",
       "no-primary-key": "La tabla de destino no tiene clave primaria, por lo que las filas no pueden actualizarse o eliminarse de forma segura.",

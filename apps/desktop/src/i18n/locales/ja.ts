@@ -908,7 +908,7 @@ export default withEnglishFallback({
     keylessEditWarning: "主キーなし",
     keylessEditWarningHint: "このテーブルには主キーがありません。更新と削除はWHERE句にすべての元の行値を使用します。完全に重複する行はまとめて影響を受ける可能性があります。",
     queryEditReady: "編集可能",
-    queryEditReadyHint: "この単一テーブル結果は「{table}」から取得されています。行の編集、削除、追加が可能で、保留中の変更アクションから保存できます。",
+    queryEditReadyHint: "この結果の書き込み可能なセルは「{table}」へ保存されます。保留中の変更アクションで確認して保存してください。",
     queryEditReadOnly: "読み取り専用の結果",
     queryEditUnsupported: {
       "not-select": "SELECTクエリの結果のみ直接編集できます。",
@@ -916,7 +916,7 @@ export default withEnglishFallback({
       "set-operation": "UNION、INTERSECT、EXCEPTの結果はソース行に安全にマッピングできません。",
       aggregation: "DISTINCT、GROUP BY、HAVING、および集計結果は直接編集できません。",
       "external-source": "外部ファイルとテーブル関数の結果は直接書き戻せません。編集前にデータベーステーブルにインポートしてください。",
-      "complex-source": "JOIN、複数テーブル、サブクエリは1つのソース行に安全にマッピングできません。",
+      "complex-source": "DBX はこの結果に対して安全に書き戻せる対象テーブルを 1 つに特定できませんでした。",
       "computed-columns": "計算式や関数の結果は書き戻せません。代わりに生の列名を選択してください。",
       "no-table": "編集可能なソーステーブルが検出されませんでした。",
       "no-primary-key": "対象テーブルに主キーがないため、行を安全に更新または削除できません。",

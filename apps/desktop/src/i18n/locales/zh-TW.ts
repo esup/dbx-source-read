@@ -915,7 +915,7 @@ export default withEnglishFallback({
     keylessEditWarning: "無主鍵定位",
     keylessEditWarningHint: "此資料表沒有主鍵。更新與刪除會在 WHERE 子句中使用所有原始資料列值；完全重複的資料列可能會一起受到影響。",
     queryEditReady: "可編輯",
-    queryEditReadyHint: "這是來自「{table}」的單一資料表結果，可直接修改、刪除或新增資料列，最後點選待儲存按鈕儲存。",
+    queryEditReadyHint: "此結果中的可寫儲存格會回寫到「{table}」。請透過待儲存按鈕檢視並儲存變更。",
     queryEditReadOnly: "唯讀結果",
     queryEditUnsupported: {
       "not-select": "只有 SELECT 查詢結果可以直接編輯。",
@@ -923,7 +923,7 @@ export default withEnglishFallback({
       "set-operation": "UNION、INTERSECT 或 EXCEPT 結果無法安全映射回來源資料列。",
       aggregation: "包含 DISTINCT、GROUP BY、HAVING 或聚合結果，無法直接編輯原始資料。",
       "external-source": "外部檔案和資料表函式結果無法直接回寫。請先匯入資料庫資料表再編輯。",
-      "complex-source": "JOIN、多個資料表和子查詢無法安全映射到單一來源資料列。",
+      "complex-source": "DBX 無法為此結果唯一確定一個安全的回寫目標資料表。",
       "computed-columns": "計算運算式或函式結果無法回寫。請改為選取原始欄位名稱。",
       "no-table": "未識別到可編輯的資料表。",
       "no-primary-key": "目標資料表沒有主鍵，因此無法安全地更新或刪除資料列。",
